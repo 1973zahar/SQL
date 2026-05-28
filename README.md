@@ -38,6 +38,7 @@ PostgreSQL використовується як центральний інте
 - `docs/deployment.md` - покрокове розгортання на сервері.
 - `docs/architecture.md` - логіка модулів та обміну даними.
 - `docs/integration-exchange.md` - API та фоновий worker автоматизованого обміну.
+- `docs/server-environment-check.md` - перевірка Windows Server і план ізоляції CRM SQL від 1C.
 
 ## Швидкий старт
 
