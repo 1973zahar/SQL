@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Marketplace Modular CRM
 
 Цей репозиторій містить стартовий проєкт модульної CRM для бізнесу з marketplace, сайтом, B2B, роздрібним магазином і 1C як основною обліковою системою.
@@ -126,3 +127,6 @@ git branch -M main
 git remote add origin https://github.com/1973zahar/SQL.git
 git push -u origin main
 ```
+=======
+# SQL
+>>>>>>> aa278be0a563158b38ae4c0e3bd9caf7f6b6051f
