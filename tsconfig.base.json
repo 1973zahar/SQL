@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@crm/core": ["packages/core/src/index.ts"],
+      "@crm/database": ["packages/database/src/index.ts"],
+      "@crm/integrations": ["packages/integrations/src/index.ts"]
+    }
+  }
+}

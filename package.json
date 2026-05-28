@@ -1,0 +1,22 @@
+{
+  "name": "marketplace-modular-crm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modular CRM for marketplace, website, B2B, retail and 1C integrations.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @crm/api",
+    "dev:api": "npm run dev --workspace @crm/api",
+    "dev:web": "npm run dev --workspace @crm/web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate --workspace @crm/database",
+    "prisma:migrate": "npm run prisma:migrate --workspace @crm/database"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

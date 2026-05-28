@@ -1,0 +1,146 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["core", "integration"]
+}
+
+enum SalesChannel {
+  marketplace
+  website
+  b2b
+  retail
+  one_c
+}
+
+enum OrderStatus {
+  draft
+  new_order @map("new")
+  confirmed
+  paid
+  packed
+  shipped
+  completed
+  cancelled
+  returned
+}
+
+enum IntegrationEventStatus {
+  pending
+  processing
+  processed
+  failed
+  ignored
+}
+
+model Customer {
+  id             String       @id @default(uuid()) @db.Uuid
+  sourceModule   SalesChannel
+  externalId     String?
+  fullName       String
+  phone          String?
+  email          String?
+  taxId          String?
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  orders         Order[]
+
+  @@unique([sourceModule, externalId])
+  @@map("customers")
+  @@schema("core")
+}
+
+model Product {
+  id          String      @id @default(uuid()) @db.Uuid
+  sku         String      @unique
+  barcode     String?
+  name        String
+  description String?
+  unit        String      @default("pcs")
+  isActive    Boolean     @default(true)
+  oneCRef     String?     @unique
+  metadata    Json        @default("{}")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+
+  @@map("products")
+  @@schema("core")
+}
+
+model Order {
+  id              String       @id @default(uuid()) @db.Uuid
+  sourceModule    SalesChannel
+  externalId      String?
+  customerId      String?      @db.Uuid
+  status          OrderStatus  @default(new_order)
+  currency        String       @default("UAH") @db.Char(3)
+  totalAmount     Decimal      @default(0) @db.Decimal(14, 2)
+  shippingAddress String?
+  paymentMethod   String?
+  deliveryMethod  String?
+  oneCDocumentRef String?
+  metadata        Json         @default("{}")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  customer        Customer?    @relation(fields: [customerId], references: [id])
+  items           OrderItem[]
+
+  @@unique([sourceModule, externalId])
+  @@map("orders")
+  @@schema("core")
+}
+
+model OrderItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  orderId      String   @db.Uuid
+  productId    String   @db.Uuid
+  skuSnapshot  String
+  nameSnapshot String
+  quantity     Decimal  @db.Decimal(14, 3)
+  unitPrice    Decimal  @db.Decimal(14, 2)
+  order        Order    @relation(fields: [orderId], references: [id])
+  product      Product  @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+  @@schema("core")
+}
+
+model InboxEvent {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  sourceModule        SalesChannel
+  eventType           String
+  externalEventId     String?
+  aggregateType       String
+  aggregateExternalId String?
+  payload             Json
+  status              IntegrationEventStatus @default(pending)
+  errorMessage        String?
+  receivedAt          DateTime               @default(now())
+  processedAt         DateTime?
+
+  @@unique([sourceModule, externalEventId])
+  @@map("inbox_events")
+  @@schema("integration")
+}
+
+model OutboxEvent {
+  id            String                 @id @default(uuid()) @db.Uuid
+  targetModule  SalesChannel
+  eventType     String
+  aggregateType String
+  aggregateId   String?                @db.Uuid
+  payload       Json
+  status        IntegrationEventStatus @default(pending)
+  errorMessage  String?
+  createdAt     DateTime               @default(now())
+  processedAt   DateTime?
+
+  @@map("outbox_events")
+  @@schema("integration")
+}
