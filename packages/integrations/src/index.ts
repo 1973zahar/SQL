@@ -2,6 +2,16 @@ export type ExternalOrderEvent = {
   source: "marketplace" | "website" | "b2b" | "retail";
   externalId: string;
   customerExternalId?: string;
+  customer?: {
+    externalId?: string;
+    fullName: string;
+    phone?: string;
+    email?: string;
+    taxId?: string;
+  };
+  shippingAddress?: string;
+  paymentMethod?: string;
+  deliveryMethod?: string;
   items: Array<{
     sku: string;
     quantity: string;
@@ -15,4 +25,13 @@ export type OneCProductPayload = {
   name: string;
   barcode?: string;
   unit?: string;
+};
+
+export type IntegrationEventEnvelope<TPayload = unknown> = {
+  sourceModule: "marketplace" | "website" | "b2b" | "retail" | "one_c";
+  eventType: string;
+  externalEventId?: string;
+  aggregateType: string;
+  aggregateExternalId?: string;
+  payload: TPayload;
 };

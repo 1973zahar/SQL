@@ -37,6 +37,7 @@ PostgreSQL використовується як центральний інте
 - `db/manual/002_module_roles.sql` - ручне створення окремих користувачів для модулів.
 - `docs/deployment.md` - покрокове розгортання на сервері.
 - `docs/architecture.md` - логіка модулів та обміну даними.
+- `docs/integration-exchange.md` - API та фоновий worker автоматизованого обміну.
 
 ## Швидкий старт
 
@@ -99,6 +100,7 @@ npm run prisma:migrate
 - Сайт, marketplace, B2B і retail передають замовлення та клієнтські події в `integration.inbox_events`.
 - Дані, які треба передати назовні, потрапляють у `integration.outbox_events`.
 - Таблиця `one_c.exchange_log` фіксує окремий журнал обміну з 1C.
+- NestJS API має endpoint-и `/integrations/*` і фоновий worker, який автоматично обробляє pending-події.
 
 ## Наступний технічний етап
 
