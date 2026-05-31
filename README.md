@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Marketplace Modular CRM
 
 Цей репозиторій містить стартовий проєкт модульної CRM для бізнесу з marketplace, сайтом, B2B, роздрібним магазином і 1C як основною обліковою системою.
@@ -20,7 +19,7 @@ PostgreSQL використовується як центральний інте
 - Database: PostgreSQL.
 - ORM/migrations: Prisma.
 - Cache/jobs: Redis.
-- Deployment: Docker Compose.
+- Deployment: Docker Compose або окремий PostgreSQL на Ubuntu Server.
 
 ## Структура
 
@@ -32,15 +31,21 @@ PostgreSQL використовується як центральний інте
 - `modules` - документація й майбутній код бізнес-модулів.
 - `docker-compose.yml` - запуск PostgreSQL, Redis, API та Web.
 - `.env.example` - приклад змінних середовища.
+- `.env.crm-sql.example` - приклад підключення API до окремої робочої SQL-бази на `crm-sql`.
 - `db/init` - SQL, який виконується при першому старті контейнера.
 - `db/migrations/001_core_schema.sql` - базова схема CRM та інтеграційного обміну.
 - `db/manual/002_module_roles.sql` - ручне створення окремих користувачів для модулів.
-- `docs/deployment.md` - покрокове розгортання на сервері.
+- `db/admin` - адміністративні SQL-скрипти для підготовки PostgreSQL.
+- `scripts/ubuntu` - скрипти для Ubuntu VM `crm-sql`.
+- `scripts/windows` - скрипти для Windows-хоста `MESER`.
+- `docs/deployment.md` - покрокове розгортання через Docker.
+- `docs/ubuntu-postgresql-runbook.md` - поточний runbook для VM `CRM-SQL` / Ubuntu `crm-sql`.
+- `docs/api-runbook.md` - запуск NestJS API проти робочої бази `crm_hub`.
 - `docs/architecture.md` - логіка модулів та обміну даними.
 - `docs/integration-exchange.md` - API та фоновий worker автоматизованого обміну.
 - `docs/server-environment-check.md` - перевірка Windows Server і план ізоляції CRM SQL від 1C.
 
-## Швидкий старт
+## Швидкий старт через Docker
 
 1. Скопіюйте `.env.example` у `.env`.
 2. Змініть `POSTGRES_PASSWORD` на сильний пароль.
@@ -78,6 +83,37 @@ http://localhost:8080
 http://localhost:3000/health
 ```
 
+## Окрема робоча SQL-база
+
+Поточний робочий напрям - не база всередині 1C і не локальний Docker-контейнер, а окрема PostgreSQL-база у виділеній VM:
+
+- Windows Server/Hyper-V host: `MESER`, `192.168.0.5`
+- Hyper-V VM: `CRM-SQL`
+- Ubuntu Server: `crm-sql`, `192.168.0.166`
+- Ubuntu user: `crmadmin`
+- PostgreSQL database: `crm_hub`
+- PostgreSQL user: `crm_admin`
+
+використовуйте runbook:
+
+```text
+docs/ubuntu-postgresql-runbook.md
+```
+
+Він покриває:
+
+- виправлення пароля PostgreSQL для `crm_admin`;
+- перевірку входу через `psql -h 127.0.0.1 -U crm_admin -d crm_hub`;
+- завантаження CRM-схеми в PostgreSQL;
+- щоденні backups у `/var/backups/crm-postgres`;
+- копіювання backups на Windows-хост у `D:\CRM\Backups`.
+
+Для майбутнього підключення API до цієї бази використовуйте шаблон:
+
+```text
+.env.crm-sql.example
+```
+
 ## Локальна розробка
 
 Після встановлення Node.js і npm:
@@ -105,31 +141,9 @@ npm run prisma:migrate
 
 ## Наступний технічний етап
 
-Після розгортання бази потрібно додати сервіси синхронізації:
+Після розгортання бази й API потрібно додати сервіси синхронізації:
 
 - імпорт номенклатури, цін і залишків із 1C;
 - експорт замовлень у 1C;
 - імпорт статусів оплат, доставок і документів;
 - API для сайту, marketplace, B2B і retail.
-
-## Публікація на GitHub
-
-Проєкт потрібно опублікувати в репозиторій:
-
-```text
-https://github.com/1973zahar/SQL
-```
-
-Команди для першої публікації:
-
-```powershell
-git init
-git add .
-git commit -m "Initial modular CRM project"
-git branch -M main
-git remote add origin https://github.com/1973zahar/SQL.git
-git push -u origin main
-```
-=======
-# SQL
->>>>>>> aa278be0a563158b38ae4c0e3bd9caf7f6b6051f

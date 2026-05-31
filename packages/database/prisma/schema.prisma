@@ -15,6 +15,9 @@ enum SalesChannel {
   b2b
   retail
   one_c
+
+  @@map("module_code")
+  @@schema("core")
 }
 
 enum OrderStatus {
@@ -27,6 +30,9 @@ enum OrderStatus {
   completed
   cancelled
   returned
+
+  @@map("order_status")
+  @@schema("core")
 }
 
 enum IntegrationEventStatus {
@@ -35,19 +41,22 @@ enum IntegrationEventStatus {
   processed
   failed
   ignored
+
+  @@map("event_status")
+  @@schema("integration")
 }
 
 model Customer {
   id             String       @id @default(uuid()) @db.Uuid
-  sourceModule   SalesChannel
-  externalId     String?
-  fullName       String
+  sourceModule   SalesChannel  @map("source_module")
+  externalId     String?       @map("external_id")
+  fullName       String        @map("full_name")
   phone          String?
   email          String?
-  taxId          String?
+  taxId          String?       @map("tax_id")
   metadata       Json         @default("{}")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
   orders         Order[]
 
   @@unique([sourceModule, externalId])
@@ -62,11 +71,11 @@ model Product {
   name        String
   description String?
   unit        String      @default("pcs")
-  isActive    Boolean     @default(true)
-  oneCRef     String?     @unique
+  isActive    Boolean     @default(true) @map("is_active")
+  oneCRef     String?     @unique @map("one_c_ref")
   metadata    Json        @default("{}")
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
   orderItems  OrderItem[]
 
   @@map("products")
@@ -75,19 +84,19 @@ model Product {
 
 model Order {
   id              String       @id @default(uuid()) @db.Uuid
-  sourceModule    SalesChannel
-  externalId      String?
-  customerId      String?      @db.Uuid
+  sourceModule    SalesChannel @map("source_module")
+  externalId      String?      @map("external_id")
+  customerId      String?      @map("customer_id") @db.Uuid
   status          OrderStatus  @default(new_order)
   currency        String       @default("UAH") @db.Char(3)
-  totalAmount     Decimal      @default(0) @db.Decimal(14, 2)
-  shippingAddress String?
-  paymentMethod   String?
-  deliveryMethod  String?
-  oneCDocumentRef String?
+  totalAmount     Decimal      @default(0) @map("total_amount") @db.Decimal(14, 2)
+  shippingAddress String?      @map("shipping_address")
+  paymentMethod   String?      @map("payment_method")
+  deliveryMethod  String?      @map("delivery_method")
+  oneCDocumentRef String?      @map("one_c_document_ref")
   metadata        Json         @default("{}")
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
   customer        Customer?    @relation(fields: [customerId], references: [id])
   items           OrderItem[]
 
@@ -98,12 +107,12 @@ model Order {
 
 model OrderItem {
   id           String   @id @default(uuid()) @db.Uuid
-  orderId      String   @db.Uuid
-  productId    String   @db.Uuid
-  skuSnapshot  String
-  nameSnapshot String
+  orderId      String   @map("order_id") @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  skuSnapshot  String   @map("sku_snapshot")
+  nameSnapshot String   @map("name_snapshot")
   quantity     Decimal  @db.Decimal(14, 3)
-  unitPrice    Decimal  @db.Decimal(14, 2)
+  unitPrice    Decimal  @map("unit_price") @db.Decimal(14, 2)
   order        Order    @relation(fields: [orderId], references: [id])
   product      Product  @relation(fields: [productId], references: [id])
 
@@ -113,16 +122,16 @@ model OrderItem {
 
 model InboxEvent {
   id                  String                 @id @default(uuid()) @db.Uuid
-  sourceModule        SalesChannel
-  eventType           String
-  externalEventId     String?
-  aggregateType       String
-  aggregateExternalId String?
+  sourceModule        SalesChannel           @map("source_module")
+  eventType           String                 @map("event_type")
+  externalEventId     String?                @map("external_event_id")
+  aggregateType       String                 @map("aggregate_type")
+  aggregateExternalId String?                @map("aggregate_external_id")
   payload             Json
   status              IntegrationEventStatus @default(pending)
-  errorMessage        String?
-  receivedAt          DateTime               @default(now())
-  processedAt         DateTime?
+  errorMessage        String?                @map("error_message")
+  receivedAt          DateTime               @default(now()) @map("received_at")
+  processedAt         DateTime?              @map("processed_at")
 
   @@unique([sourceModule, externalEventId])
   @@map("inbox_events")
@@ -131,15 +140,15 @@ model InboxEvent {
 
 model OutboxEvent {
   id            String                 @id @default(uuid()) @db.Uuid
-  targetModule  SalesChannel
-  eventType     String
-  aggregateType String
-  aggregateId   String?                @db.Uuid
+  targetModule  SalesChannel           @map("target_module")
+  eventType     String                 @map("event_type")
+  aggregateType String                 @map("aggregate_type")
+  aggregateId   String?                @map("aggregate_id") @db.Uuid
   payload       Json
   status        IntegrationEventStatus @default(pending)
-  errorMessage  String?
-  createdAt     DateTime               @default(now())
-  processedAt   DateTime?
+  errorMessage  String?                @map("error_message")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  processedAt   DateTime?              @map("processed_at")
 
   @@map("outbox_events")
   @@schema("integration")

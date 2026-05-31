@@ -7,7 +7,7 @@ import { AppModule } from "./modules/app.module.js";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
-  const port = config.get<number>("API_PORT", 3000);
+  const port = Number(config.get<string>("API_PORT", "3000"));
 
   app.enableCors({
     origin: config.get<string>("WEB_ORIGIN", "http://localhost:5173"),
@@ -22,6 +22,7 @@ async function bootstrap() {
   );
 
   await app.listen(port);
+  console.log(`CRM API listening on port ${port}`);
 }
 
 void bootstrap();

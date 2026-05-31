@@ -1,4 +1,4 @@
-import { IsArray, IsEnum, IsOptional, IsString, ValidateNested } from "class-validator";
+import { IsArray, IsEnum, IsObject, IsOptional, IsString, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 
 enum SalesChannel {
@@ -14,6 +14,31 @@ class CreateOrderItemDto {
 
   @IsString()
   quantity!: string;
+
+  @IsOptional()
+  @IsString()
+  unitPrice?: string;
+}
+
+class CreateOrderCustomerDto {
+  @IsOptional()
+  @IsString()
+  externalId?: string;
+
+  @IsString()
+  fullName!: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  taxId?: string;
 }
 
 export class CreateOrderDto {
@@ -24,8 +49,29 @@ export class CreateOrderDto {
   @IsString()
   externalId?: string;
 
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateOrderCustomerDto)
+  customer?: CreateOrderCustomerDto;
+
+  @IsOptional()
+  @IsString()
+  shippingAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
+
+  @IsOptional()
+  @IsString()
+  deliveryMethod?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items!: CreateOrderItemDto[];
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }
