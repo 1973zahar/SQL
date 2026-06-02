@@ -8653,3 +8653,26 @@ Results:
 - `git diff --cached --stat`: exit code `0`; `8 files changed, 522 insertions(+), 8 deletions(-)`.
 
 Status: successful. Next action: stage this log entry, commit `Fix 1C viewer product folder columns`, and push to GitHub.
+
+## 2026-06-02 - Viewer issue: fix commit created
+
+Action: committed the live viewer fix for missing product folder/group columns.
+
+Commands:
+
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git commit -m "Fix 1C viewer product folder columns"
+```
+
+Results:
+
+- `git add docs/crm-sql-work-log-2026-06-01.md`: exit code `0`; Git repeated the LF-to-CRLF warning for the work log.
+- `git commit -m "Fix 1C viewer product folder columns"`: exit code `0`.
+- Commit created: `412975e`.
+- Summary: `8 files changed, 544 insertions(+), 8 deletions(-)`.
+- New files:
+  - `scripts/ubuntu/apply-1c-viewer-product-folder-update.sh`
+  - `dist/crm-product-folder-update-2026-06-02/ubuntu-home-crmadmin-SQL/scripts/ubuntu/apply-1c-viewer-product-folder-update.sh`
+
+Status: successful. Next action: commit this log entry and push both commits to GitHub.
