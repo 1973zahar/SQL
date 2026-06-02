@@ -8240,3 +8240,31 @@ Results:
 - Summary: `73 files changed, 46166 insertions(+), 49 deletions(-)`.
 
 Status: successful. Next action: commit this log entry separately so GitHub receives the record of the main sync commit, then push `main` to `origin`.
+
+## 2026-06-02 - GitHub sync: log-only commit and first push attempt
+
+Action: committed the work-log entry for the main sync commit and attempted to push local `main` to GitHub remote `origin`.
+
+Commands:
+
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git commit -m "Log SQL GitHub sync commit"
+git status --short --branch
+git log --oneline -2
+git push origin main
+```
+
+Results:
+
+- `git add docs/crm-sql-work-log-2026-06-01.md`: exit code `0`; Git repeated the LF-to-CRLF warning for `docs/crm-sql-work-log-2026-06-01.md`.
+- `git commit -m "Log SQL GitHub sync commit"`: exit code `0`; commit created: `bc8d211`; `1 file changed, 20 insertions(+)`.
+- `git status --short --branch`: exit code `0`; `main...origin/main [ahead 2]`.
+- `git log --oneline -2`: exit code `0`; latest commits are `bc8d211 Log SQL GitHub sync commit` and `cb338c9 Sync CRM SQL integration logs and 1C mirror tooling`.
+- `git push origin main`: exit code `1`; failed with:
+
+```text
+fatal: unable to access 'https://github.com/1973zahar/SQL.git/': schannel: AcquireCredentialsHandle failed: SEC_E_NO_CREDENTIALS (0x8009030e) - В пакете безопасности отсутствуют учетные данные
+```
+
+Status: push failed because the current execution context has no GitHub HTTPS credentials. Next action: commit this push-failure log entry locally, then retry `git push origin main` with elevated/system credential access.
