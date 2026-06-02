@@ -9864,3 +9864,23 @@ Diagnosis:
 - Need either a direct VM/server console or the current Ubuntu IP address.
 
 Status: blocked on Ubuntu access. Next action: provide Windows-side steps to reopen/find the Ubuntu host, then reconnect with SSH once reachable.
+## 2026-06-02 - Process correction: separate Windows PowerShell and Ubuntu Bash
+
+Action: user complained that they have to teach the assistant repeatedly.
+
+Root cause acknowledged:
+
+- I previously provided Bash/Linux commands while the user was working in Windows PowerShell.
+- I also assumed an Ubuntu terminal remained open after the user had already lost that session.
+- This caused invalid PowerShell syntax errors and wasted time.
+
+Correction rule for the rest of this project:
+
+- First identify the active shell from the prompt:
+  - `PS C:\...>` means Windows PowerShell commands only.
+  - `crmadmin@crm-sql:~/SQL$` means Ubuntu Bash commands only.
+- Never provide Bash control syntax (`fi`, `for ... do`, `|| true`, heredocs, `/proc/...`) for Windows PowerShell.
+- Never use `127.0.0.1` from Windows to check the Ubuntu viewer; from Windows use the Ubuntu LAN IP, for example `http://192.168.0.166:8091`.
+- If Ubuntu access is lost, first restore/find the Ubuntu host/IP/console before continuing SQL/viewer repair.
+
+Status: correction logged. Next action: provide a Windows-only recovery path for finding/reconnecting to Ubuntu, then an Ubuntu-only block once access is restored.
