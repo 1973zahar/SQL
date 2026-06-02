@@ -9895,3 +9895,31 @@ Correction:
 - Next meaningful action is not another network probe; it is to regain direct console access to the Ubuntu host/VM or identify where `crm-sql` is running.
 
 Status: repeated-check loop acknowledged and stopped. Next action: ask only for the missing environment fact: where the Ubuntu `crm-sql` machine is hosted/opened from, or have the user open that VM/server console directly.
+## 2026-06-02 - How to enter Ubuntu: local host checks
+
+Action: user asked `як зайти в убунту`. Instead of repeating SSH/network checks, inspected whether this Windows machine exposes a local Ubuntu/VM entrypoint.
+
+Commands:
+
+```powershell
+Get-Command Get-VM -ErrorAction SilentlyContinue | Format-List Source,Name,CommandType
+Get-Command VBoxManage -ErrorAction SilentlyContinue | Format-List Source,Name,CommandType
+wsl.exe -l -v
+Get-Process | Where-Object { $_.ProcessName -match 'VirtualBox|VBox|vmware|Hyper-V|vmconnect|qemu|multipass|wsl|WindowsTerminal' } | Select-Object ProcessName,Id,MainWindowTitle
+```
+
+Results:
+
+- `Get-Command Get-VM`: exit code `1`; no Hyper-V `Get-VM` command exposed in this shell.
+- `Get-Command VBoxManage`: exit code `1`; no VirtualBox CLI exposed in this shell.
+- `wsl.exe -l -v`: exit code `1`; WSL reports no installed Linux distributions.
+- Process check: exit code `0`; found `WindowsTerminal` and `wslservice`, but no obvious running VirtualBox/VMware/Hyper-V console process.
+
+Diagnosis:
+
+- There is no obvious local WSL Ubuntu distribution to enter with `wsl`.
+- There is no obvious local VirtualBox/Hyper-V CLI entrypoint exposed from this shell.
+- The earlier `crmadmin@crm-sql:~/SQL` window was most likely an SSH session to a separate Ubuntu host/VM, or a VM console opened by another application not visible from these checks.
+- Since SSH to `192.168.0.166` was timing out, access must be restored via the actual VM/server console or by finding the current IP/reachability of `crm-sql`.
+
+Status: diagnosis logged. Next action: answer with the shortest correct entry paths: SSH only if reachable; otherwise open the actual VM/server console where `crm-sql` is hosted.
