@@ -74,6 +74,24 @@ USE_POSTGRES_SUDO=1 bash scripts/ubuntu/import-1c-catalogs-http.sh
 - `one_c_mirror.crm_products.is_group`;
 - `one_c_mirror.crm_product_folders`.
 
+## Якщо viewer не показує колонки папки товару
+
+Якщо `http://192.168.0.166:8091` відкривається, але у вкладці `Товари` немає колонок `Папка` і `Код папки`, значить systemd-сервіс ще працює зі старим viewer-файлом або SQL view не перестворено. Запустіть на Ubuntu:
+
+```bash
+cd ~/SQL
+bash scripts/ubuntu/apply-1c-viewer-product-folder-update.sh
+```
+
+Успішний результат має показати:
+
+- `viewerBuild: 2026-06-02-product-folder-columns-2`;
+- `folder columns ok: True`;
+- у `product columns` мають бути `product_group_name` і `product_group_code`;
+- у верхній панелі viewer має з'явитися `build: 2026-06-02-product-folder-columns-2`.
+
+Після цього оновіть сторінку браузера через Ctrl+F5.
+
 ## Перевірка результату
 
 ```bash

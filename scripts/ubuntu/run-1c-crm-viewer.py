@@ -21,6 +21,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 
+VIEWER_BUILD = "2026-06-02-product-folder-columns-2"
+
+
 VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
     "products": {
         "label": "Товари",
@@ -633,6 +636,12 @@ INDEX_HTML = r"""<!doctype html>
       white-space: nowrap;
     }
 
+    .build {
+      color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
     .layout {
       display: grid;
       grid-template-columns: 230px minmax(0, 1fr);
@@ -839,6 +848,7 @@ INDEX_HTML = r"""<!doctype html>
   <header>
     <h1>1C CRM Mirror Viewer</h1>
     <div class="meta">
+      <span id="viewerBuild" class="build">build: loading</span>
       <span id="loadedAt">Завантаження...</span>
       <span id="reloadStatus"></span>
       <span>read-only</span>
@@ -1014,6 +1024,11 @@ INDEX_HTML = r"""<!doctype html>
       document.getElementById("nextPage").disabled = state.page >= pageCount;
     }
 
+    function updateMeta() {
+      document.getElementById("loadedAt").textContent = `Зріз: ${state.payload.loadedAt}`;
+      document.getElementById("viewerBuild").textContent = `build: ${state.payload.viewerBuild || "unknown"}`;
+    }
+
     function render() {
       renderTabs();
       const rows = filteredRows();
@@ -1035,7 +1050,7 @@ INDEX_HTML = r"""<!doctype html>
           throw new Error(`HTTP ${response.status}`);
         }
         state.payload = await response.json();
-        document.getElementById("loadedAt").textContent = `Зріз: ${state.payload.loadedAt}`;
+        updateMeta();
         updateImportButton();
         render();
       } catch (error) {
@@ -1064,7 +1079,7 @@ INDEX_HTML = r"""<!doctype html>
         }
         state.payload = await response.json();
         state.page = 1;
-        document.getElementById("loadedAt").textContent = `Зріз: ${state.payload.loadedAt}`;
+        updateMeta();
         status.textContent = "Оновлено";
         render();
       } catch (error) {
@@ -1092,7 +1107,7 @@ INDEX_HTML = r"""<!doctype html>
         }
         state.payload = result.payload;
         state.page = 1;
-        document.getElementById("loadedAt").textContent = `Зріз: ${state.payload.loadedAt}`;
+        updateMeta();
         status.textContent = "Імпорт завершено";
         render();
       } catch (error) {
@@ -1223,6 +1238,7 @@ def load_payload(args: argparse.Namespace) -> dict[str, Any]:
 
     return {
         "loadedAt": datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
+        "viewerBuild": VIEWER_BUILD,
         "views": views,
     }
 
@@ -1332,7 +1348,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/health":
-            self.send_bytes(b"ok\n", "text/plain; charset=utf-8")
+            self.send_bytes(f"ok\nbuild={VIEWER_BUILD}\n".encode("utf-8"), "text/plain; charset=utf-8")
             return
 
         self.send_bytes(b"not found\n", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)

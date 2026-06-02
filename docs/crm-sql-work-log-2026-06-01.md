@@ -8327,3 +8327,329 @@ Results:
 - Automation create: successful; created active hourly automation `sql-github-auto-sync`.
 
 Status: successful. Next action: commit and push this automation-log entry so the remote also records the recurring sync setup.
+
+## 2026-06-02 - Viewer issue: product folder columns missing on live page
+
+Action: investigated user screenshot showing live `1C CRM Mirror Viewer` at `http://192.168.0.166:8091` with slice `2026-06-02 15:19:27 UTC`, where product table does not visibly show the new folder/group columns.
+
+Commands:
+
+```powershell
+rg -n "Папка|Код папки|product_group|crm_product_folders|crm_products" scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py db\migrations\003_one_c_crm_ready_views.sql docs\crm-sql-work-log-2026-06-01.md
+git status --short --branch
+Get-Content docs\crm-sql-work-log-2026-06-01.md -Tail 80
+```
+
+Results:
+
+- `rg`: exit code `0`; local repo and packaged Ubuntu viewer both contain product columns `product_group_name` / `Папка`, `product_group_code` / `Код папки`, and view tab `crm_product_folders` / `Папки товарів`.
+- `git status --short --branch`: exit code `0`; local branch is clean and aligned with `origin/main`.
+- `Get-Content ... -Tail 80`: exit code `0`; confirmed the latest GitHub sync and automation log entries are present locally.
+
+Status: successful investigation. Current diagnosis: the live server is likely running an older `/home/crmadmin/SQL/scripts/ubuntu/run-1c-crm-viewer.py`, or it loaded an older SQL/view snapshot before the new fields were applied. Next action: inspect the viewer code path and prepare exact Ubuntu verification/redeploy commands.
+
+## 2026-06-02 - Viewer issue: local viewer implementation inspected
+
+Action: inspected the local Ubuntu viewer implementation and service installer to determine why live page columns can be missing.
+
+Commands:
+
+```powershell
+Get-Content scripts\ubuntu\run-1c-crm-viewer.py -TotalCount 120
+rg -n "renderTable|columns|snapshot|last_updated|http.server|ThreadingHTTPServer|DATA|VIEWS|selectView" scripts\ubuntu\run-1c-crm-viewer.py
+Get-Content scripts\ubuntu\install-1c-viewer-systemd-service.sh -TotalCount 140
+```
+
+Results:
+
+- `Get-Content scripts\ubuntu\run-1c-crm-viewer.py -TotalCount 120`: exit code `0`; product view defines `product_group_name` and `product_group_code` immediately after `product_name`.
+- `rg`: exit code `0`; `renderTable` uses `view.columns`, so a live page without `Папка` / `Код папки` is not hiding these columns dynamically in the current repo version.
+- `Get-Content scripts\ubuntu\install-1c-viewer-systemd-service.sh -TotalCount 140`: exit code `0`; service runs `${REPO_ROOT}/scripts/ubuntu/run-1c-crm-viewer.py` from `/home/crmadmin/SQL` when installed there.
+
+Status: successful. Diagnosis tightened: the visible live page is not using the current repo version of `/home/crmadmin/SQL/scripts/ubuntu/run-1c-crm-viewer.py`, or the service was restarted from a stale working directory/file. Next action: add a visible viewer build marker and runtime schema diagnostics so future mismatches are obvious.
+
+## 2026-06-02 - Viewer issue: render/reload behavior inspected
+
+Action: inspected table render, payload loading, HTTP handlers, and reload/import endpoints in the Ubuntu viewer.
+
+Commands:
+
+```powershell
+Get-Content scripts\ubuntu\run-1c-crm-viewer.py | Select-Object -Skip 930 -First 120
+Get-Content scripts\ubuntu\run-1c-crm-viewer.py | Select-Object -Skip 1180 -First 90
+Get-Content scripts\ubuntu\run-1c-crm-viewer.py | Select-Object -Skip 1270 -First 120
+```
+
+Results:
+
+- First command: exit code `0`; `renderTable(rows)` builds the header directly from `view.columns`.
+- Second command: exit code `0`; `load_payload(args)` loads rows for each static `VIEW_DEFINITIONS` entry and includes `columns` in `/api/data`.
+- Third command: exit code `0`; `/api/reload` and `/api/import-now` only reload SQL payload, while `/` serves the currently running Python file's embedded `INDEX_HTML`.
+
+Status: successful. Finding: clicking `Оновити з SQL` cannot add newly coded columns if the running systemd process still uses an old Python file; it only refreshes row data. Next action: edit viewer to expose a visible build marker/schema check, then package and push the fix.
+
+## 2026-06-02 - Viewer issue: first build-marker patch attempt failed
+
+Action: attempted to patch the Ubuntu viewer and packaged viewer with a visible build marker and `/health` build output, then searched exact context for a corrected patch.
+
+Commands:
+
+```powershell
+apply_patch
+rg -n -C 4 "<header>|loadedAt|read-only|\.meta|function renderPager|function render\(|state.payload = await response.json|state.payload = result.payload|loadedAt\":|if path == \"/health\"" scripts\ubuntu\run-1c-crm-viewer.py
+rg -n -C 4 "<header>|loadedAt|read-only|\.meta|function renderPager|function render\(|state.payload = await response.json|state.payload = result.payload|loadedAt\":|if path == \"/health\"" dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+git diff -- scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+rg -n -C 4 '<header>|loadedAt|read-only|\.meta|function renderPager|function render\(|state\.payload = await response\.json|state\.payload = result\.payload|"loadedAt"|if path == "/health"' scripts\ubuntu\run-1c-crm-viewer.py
+rg -n -C 4 '<header>|loadedAt|read-only|\.meta|function renderPager|function render\(|state\.payload = await response\.json|state\.payload = result\.payload|"loadedAt"|if path == "/health"' dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+git diff -- scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+```
+
+Results:
+
+- `apply_patch`: exit code `1`; patch failed because expected HTML context did not include the existing `<span id="reloadStatus"></span>` line.
+- First two `rg` commands: exit code `1`; PowerShell parser error from unescaped double quotes in the regex string.
+- First `git diff`: exit code `0`; no viewer file changes were made by the failed patch.
+- Corrected `rg` commands with single-quoted regex: exit code `0`; found exact header/context lines in both main and packaged viewer files.
+- Final `git diff`: exit code `0`; still no viewer file changes before the corrected patch.
+
+Status: failed patch attempt, successful recovery/context lookup. Next action: apply a corrected patch using the actual header context with `reloadStatus`.
+
+## 2026-06-02 - Viewer issue: build marker patch applied
+
+Action: applied corrected patch to the main Ubuntu viewer and packaged copy to expose the running viewer build/version.
+
+Commands:
+
+```powershell
+rg -n -C 3 health scripts\ubuntu\run-1c-crm-viewer.py
+rg -n -C 3 health dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+apply_patch
+python -m py_compile scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+rg -n "VIEWER_BUILD|viewerBuild|product_group_name|product_group_code|build=" scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+git diff --stat
+```
+
+Results:
+
+- Simple `rg ... health` commands: exit code `0`; found `/health` handler in both viewer files.
+- Corrected `apply_patch`: exit code `0`; modified both viewer files.
+- `python -m py_compile ...`: exit code `1`; failed because `python` is not available in the Windows PATH of this shell.
+- Marker `rg`: exit code `0`; both viewer files contain `VIEWER_BUILD = "2026-06-02-product-folder-columns-2"`, `viewerBuild`, `/health` build output, and `product_group_name` / `product_group_code` columns.
+- `git diff --stat`: exit code `0`; changed main viewer, packaged viewer, and work log.
+
+Status: partial verification. Code patch succeeded; syntax check needs bundled Codex Python because local `python` command is missing. Next action: load workspace dependencies and run py_compile with bundled Python.
+
+## 2026-06-02 - Viewer issue: bundled Python syntax check passed
+
+Action: loaded Codex workspace dependencies and ran Python syntax validation with the bundled Python executable.
+
+Commands and tool calls:
+
+```json
+{
+  "tool": "codex_app.load_workspace_dependencies"
+}
+```
+
+```powershell
+& 'C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m py_compile scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+```
+
+Results:
+
+- `codex_app.load_workspace_dependencies`: successful; bundled Python path is `C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe`.
+- Bundled `py_compile`: exit code `0`; both main and packaged viewer files are syntactically valid.
+
+Status: successful. Next action: prepare Ubuntu deploy/verification commands so the live `192.168.0.166:8091` service actually runs this new build and shows `Папка` / `Код папки`.
+
+## 2026-06-02 - Viewer issue: Ubuntu apply script added and verified
+
+Action: added an Ubuntu helper script that updates `/home/crmadmin/SQL`, reapplies `003_one_c_crm_ready_views.sql`, restarts `crm-1c-viewer.service`, and verifies `/api/data` exposes `viewerBuild`, `product_group_name`, and `product_group_code`.
+
+Files added:
+
+- `scripts/ubuntu/apply-1c-viewer-product-folder-update.sh`
+- `dist/crm-product-folder-update-2026-06-02/ubuntu-home-crmadmin-SQL/scripts/ubuntu/apply-1c-viewer-product-folder-update.sh`
+
+Commands:
+
+```powershell
+apply_patch
+bash -n scripts\ubuntu\apply-1c-viewer-product-folder-update.sh dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\apply-1c-viewer-product-folder-update.sh
+& 'C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m py_compile scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+git diff --stat
+Get-Command bash -ErrorAction SilentlyContinue | Format-List Source,Name,CommandType
+Test-Path 'C:\Program Files\Git\bin\bash.exe'
+git status --short --branch
+& 'C:\Program Files\Git\bin\bash.exe' -n scripts/ubuntu/apply-1c-viewer-product-folder-update.sh dist/crm-product-folder-update-2026-06-02/ubuntu-home-crmadmin-SQL/scripts/ubuntu/apply-1c-viewer-product-folder-update.sh
+```
+
+Results:
+
+- `apply_patch`: exit code `0`; helper script added in both main scripts folder and packaged folder.
+- `bash -n ...`: exit code `1`; failed because `bash` in PATH is `C:\WINDOWS\system32\bash.exe` and WSL has no installed Linux distribution.
+- Bundled Python `py_compile`: exit code `0`; viewer scripts are syntactically valid.
+- `git diff --stat`: exit code `0`; showed viewer/work-log changes; untracked helper scripts are not included in unstaged diff stat.
+- `Get-Command bash`: exit code `0`; confirmed PATH `bash.exe` source is `C:\WINDOWS\system32\bash.exe`.
+- `Test-Path 'C:\Program Files\Git\bin\bash.exe'`: exit code `0`; returned `True`.
+- `git status --short --branch`: exit code `0`; branch aligned with origin, with modified viewer/log files and two untracked helper scripts.
+- Git Bash `bash.exe -n ...`: exit code `0`; helper scripts have valid Bash syntax.
+
+Status: successful after switching from WSL bash to Git Bash. Next action: update the delivery zip so it includes the build-marker viewer and helper script, then stage/commit/push.
+
+## 2026-06-02 - Viewer issue: delivery zip refreshed
+
+Action: removed generated Python cache directories, rebuilt the product-folder delivery zip, and verified the archive contents.
+
+Commands:
+
+```powershell
+Get-ChildItem -Path scripts\ubuntu,dist\crm-product-folder-update-2026-06-02 -Recurse -Directory -Filter __pycache__ | Select-Object -ExpandProperty FullName
+
+$workspace = (Resolve-Path 'D:\Codex\CRM\SQL').Path
+$targets = @(
+  'scripts\ubuntu\__pycache__',
+  'dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\__pycache__'
+) | ForEach-Object { Resolve-Path $_ -ErrorAction SilentlyContinue }
+foreach ($target in $targets) {
+  if (-not $target.Path.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove outside workspace: $($target.Path)"
+  }
+}
+foreach ($target in $targets) {
+  Remove-Item -LiteralPath $target.Path -Recurse -Force
+  Write-Output "removed $($target.Path)"
+}
+
+Compress-Archive -Path 'dist\crm-product-folder-update-2026-06-02\*' -DestinationPath 'dist\crm-product-folder-update-2026-06-02.zip' -Force
+
+Get-ChildItem -Path scripts\ubuntu,dist\crm-product-folder-update-2026-06-02 -Recurse -Directory -Filter __pycache__ | Select-Object -ExpandProperty FullName
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead('D:\Codex\CRM\SQL\dist\crm-product-folder-update-2026-06-02.zip')
+try {
+  $zip.Entries |
+    Where-Object { $_.FullName -match 'run-1c-crm-viewer.py|apply-1c-viewer-product-folder-update.sh|__pycache__' } |
+    Select-Object -ExpandProperty FullName
+} finally {
+  $zip.Dispose()
+}
+
+git status --short --branch
+```
+
+Results:
+
+- Initial `Get-ChildItem __pycache__`: exit code `0`; found two generated cache directories.
+- Verified both deletion targets are inside `D:\Codex\CRM\SQL`, then removed only those two `__pycache__` directories; exit code `0`.
+- `Compress-Archive`: exit code `0`; refreshed `dist/crm-product-folder-update-2026-06-02.zip`.
+- Post-cleanup `Get-ChildItem __pycache__`: exit code `0`; returned no cache directories.
+- Zip inspection: exit code `0`; archive contains `ubuntu-home-crmadmin-SQL\scripts\ubuntu\apply-1c-viewer-product-folder-update.sh` and `ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py`; no `__pycache__` entries.
+- `git status --short --branch`: exit code `0`; modified viewer/package/log files and untracked helper scripts are ready for staging.
+
+Status: successful. Next action: add a short deployment note, run final checks, then commit and push the viewer-fix update.
+
+## 2026-06-02 - Viewer issue: deployment note and final package checks
+
+Action: documented the Ubuntu fix command, rebuilt the delivery zip again after doc changes, verified archive contents, reran syntax checks, and removed generated Python cache directories.
+
+Commands:
+
+```powershell
+Get-Content docs\one-c-mirror-import.md -Tail 80
+Get-Content dist\crm-product-folder-update-2026-06-02\docs\one-c-mirror-import.md -Tail 80
+apply_patch
+rg -n -C 2 "Якщо viewer|Перевірка результату|viewerBuild|folder columns ok" docs\one-c-mirror-import.md
+rg -n -C 2 "Якщо viewer|Перевірка результату|viewerBuild|folder columns ok" dist\crm-product-folder-update-2026-06-02\docs\one-c-mirror-import.md
+apply_patch
+rg -n -C 3 "Якщо viewer|Перевірка результату|viewerBuild|folder columns ok" docs\one-c-mirror-import.md dist\crm-product-folder-update-2026-06-02\docs\one-c-mirror-import.md
+git diff --stat
+Compress-Archive -Path 'dist\crm-product-folder-update-2026-06-02\*' -DestinationPath 'dist\crm-product-folder-update-2026-06-02.zip' -Force
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead('D:\Codex\CRM\SQL\dist\crm-product-folder-update-2026-06-02.zip')
+try {
+  $zip.Entries |
+    Where-Object { $_.FullName -match 'run-1c-crm-viewer.py|apply-1c-viewer-product-folder-update.sh|one-c-mirror-import.md|__pycache__' } |
+    Select-Object -ExpandProperty FullName
+} finally {
+  $zip.Dispose()
+}
+& 'C:\Program Files\Git\bin\bash.exe' -n scripts/ubuntu/apply-1c-viewer-product-folder-update.sh dist/crm-product-folder-update-2026-06-02/ubuntu-home-crmadmin-SQL/scripts/ubuntu/apply-1c-viewer-product-folder-update.sh
+& 'C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m py_compile scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+Get-ChildItem -Path scripts\ubuntu,dist\crm-product-folder-update-2026-06-02 -Recurse -Directory -Filter __pycache__ | Select-Object -ExpandProperty FullName
+$workspace = (Resolve-Path 'D:\Codex\CRM\SQL').Path
+$targets = @(
+  'scripts\ubuntu\__pycache__',
+  'dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\__pycache__'
+) | ForEach-Object { Resolve-Path $_ -ErrorAction SilentlyContinue }
+foreach ($target in $targets) {
+  if (-not $target.Path.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove outside workspace: $($target.Path)"
+  }
+}
+foreach ($target in $targets) {
+  Remove-Item -LiteralPath $target.Path -Recurse -Force
+  Write-Output "removed $($target.Path)"
+}
+```
+
+Results:
+
+- Initial `Get-Content` commands: exit code `0`; inspected current docs before editing, though PowerShell displayed UTF-8 Ukrainian text as mojibake.
+- First `apply_patch`: exit code `0`; added viewer troubleshooting section to main and packaged `one-c-mirror-import.md`.
+- First `rg`: exit code `0`; found duplicate `## Перевірка результату` heading caused by insertion location.
+- Second `apply_patch`: exit code `0`; removed the duplicate heading in both docs.
+- Combined `rg`: exit code `0`; confirmed final order is `## Якщо viewer не показує колонки папки товару`, then `## Перевірка результату`.
+- `git diff --stat`: exit code `0`; showed updated zip, docs, viewer, and work log.
+- `Compress-Archive`: exit code `0`; rebuilt `dist/crm-product-folder-update-2026-06-02.zip`.
+- Zip inspection: exit code `0`; archive contains `docs\one-c-mirror-import.md`, helper script, and viewer script; no `__pycache__` entries.
+- Git Bash `bash -n`: exit code `0`; helper scripts remain syntactically valid.
+- Bundled Python `py_compile`: exit code `0`; viewer scripts remain syntactically valid.
+- Post-compile `Get-ChildItem __pycache__`: exit code `0`; found two generated cache directories.
+- Verified both cache paths are inside `D:\Codex\CRM\SQL` and removed them; exit code `0`.
+
+Status: successful. Next action: final git checks, stage, commit, push this viewer-fix update, then provide the exact Ubuntu command to run on the live server.
+
+## 2026-06-02 - Viewer issue: final pre-commit checks
+
+Action: ran final repository checks before staging the live viewer fix.
+
+Commands:
+
+```powershell
+git status --short --branch
+git diff --check
+git diff --stat
+rg -n "VIEWER_BUILD|viewerBuild|apply-1c-viewer-product-folder-update|folder columns ok|Папка|Код папки" scripts\ubuntu\run-1c-crm-viewer.py scripts\ubuntu\apply-1c-viewer-product-folder-update.sh docs\one-c-mirror-import.md
+```
+
+Results:
+
+- `git status --short --branch`: exit code `0`; branch aligned with `origin/main`; modified viewer/package/docs/log files plus two untracked helper scripts.
+- `git diff --check`: exit code `0`; no whitespace errors; Git repeated LF-to-CRLF warnings for modified text files.
+- `git diff --stat`: exit code `0`; changed zip, packaged doc, packaged viewer, work log, main doc, and main viewer; untracked helper scripts not included in unstaged diff stat.
+- `rg`: exit code `0`; confirmed `VIEWER_BUILD`, `viewerBuild`, helper script command, `folder columns ok`, and product folder labels `Папка` / `Код папки` are present.
+
+Status: successful. Next action: stage all viewer-fix files, verify staged diff, commit, and push.
+
+## 2026-06-02 - Viewer issue: staged diff verified
+
+Action: staged all live viewer fix files and verified the staged diff before commit.
+
+Commands:
+
+```powershell
+git add -A
+git diff --cached --check
+git status --short --branch
+git diff --cached --stat
+```
+
+Results:
+
+- `git add -A`: exit code `0`; Git repeated LF-to-CRLF warnings for modified text files and the new packaged helper script.
+- `git diff --cached --check`: exit code `0`; no whitespace errors.
+- `git status --short --branch`: exit code `0`; staged changes include updated delivery zip, packaged doc, packaged helper script, packaged viewer, work log, main doc, main helper script, and main viewer.
+- `git diff --cached --stat`: exit code `0`; `8 files changed, 522 insertions(+), 8 deletions(-)`.
+
+Status: successful. Next action: stage this log entry, commit `Fix 1C viewer product folder columns`, and push to GitHub.
