@@ -8961,6 +8961,26 @@ Results:
 
 Status: successful. Next action: stage this log entry, commit, and push.
 
+## 2026-06-02 - Viewer issue: helper diagnostics pushed
+
+Action: committed and pushed the stronger live-service diagnostics for the Ubuntu helper script.
+
+Commands:
+
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git commit -m "Add 1C viewer live service diagnostics"
+git push origin main
+```
+
+Results:
+
+- `git add docs/crm-sql-work-log-2026-06-01.md`: exit code `0`; Git repeated LF-to-CRLF warning for the work log.
+- `git commit -m "Add 1C viewer live service diagnostics"`: exit code `0`; commit created: `eab8418`; `4 files changed, 383 insertions(+)`.
+- Elevated `git push origin main`: exit code `0`; pushed `main` from `1149b75` to `eab8418`.
+
+Status: successful. Next action: commit and push this final push-result log entry, then give the user the exact Ubuntu commands to run in the open `crmadmin@crm-sql` terminal.
+
 ## 2026-06-02 - Marketplace CRM: NovaPay gateway and TTN payment reconciliation
 
 Action: implemented safe NovaPay integration in the local Marketplace CRM prototype through a server-side gateway, without storing a private NovaPay key in browser code, and added automatic CRM payment creation when NovaPay TTN and amount match CRM data.
