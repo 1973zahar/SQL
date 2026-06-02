@@ -8268,3 +8268,23 @@ fatal: unable to access 'https://github.com/1973zahar/SQL.git/': schannel: Acqui
 ```
 
 Status: push failed because the current execution context has no GitHub HTTPS credentials. Next action: commit this push-failure log entry locally, then retry `git push origin main` with elevated/system credential access.
+
+## 2026-06-02 - GitHub sync: elevated push succeeded
+
+Action: committed the push-failure log entry and retried GitHub push with elevated/system credential access.
+
+Commands:
+
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git commit -m "Log SQL GitHub push failure"
+git push origin main
+```
+
+Results:
+
+- `git add docs/crm-sql-work-log-2026-06-01.md`: exit code `0`; Git repeated the LF-to-CRLF warning for `docs/crm-sql-work-log-2026-06-01.md`.
+- `git commit -m "Log SQL GitHub push failure"`: exit code `0`; commit created: `113a3d6`; `1 file changed, 28 insertions(+)`.
+- Elevated `git push origin main`: exit code `0`; pushed `main` from `6d0fedf` to `113a3d6`.
+
+Status: successful. GitHub remote `https://github.com/1973zahar/SQL.git` now contains commits through `113a3d6`. Next action: commit and push this success-log entry so the remote also contains the successful push record.
