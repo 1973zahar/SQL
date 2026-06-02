@@ -9823,3 +9823,28 @@ Diagnosis:
 - SSH from Windows to `192.168.0.166:22` timed out in the screenshot, so either SSH is not reachable/running from Windows now, the IP/network route changed, or Windows firewall/VPN/network state differs. The already open `crmadmin@crm-sql:~/SQL` terminal is the correct place to continue server commands.
 
 Status: diagnosis successful. Next action: provide separate command blocks for Ubuntu terminal and Windows PowerShell.
+
+## 2026-06-02 - SSH timeout question: could another login block access
+
+Action: user asked whether someone else may have logged into Ubuntu and blocked access.
+
+Diagnosis:
+
+- A normal concurrent Ubuntu/SSH login does not block another SSH login.
+- `ssh: connect to host 192.168.0.166 port 22: Connection timed out` means the Windows side cannot establish TCP connection to port `22`.
+- If SSH were blocked by authentication or too many sessions, the error would usually be different, such as `Permission denied`, `Connection refused`, or a max-startups/session message.
+- Timeout points to network reachability, wrong/stale IP, VM/network adapter state, firewall, SSH daemon not listening, or host being down/restarting.
+
+Commands:
+
+```powershell
+Test-NetConnection -ComputerName 192.168.0.166 -Port 22 | Format-List ComputerName,RemoteAddress,RemotePort,TcpTestSucceeded
+Test-NetConnection -ComputerName 192.168.0.166 -Port 8091 | Format-List ComputerName,RemoteAddress,RemotePort,TcpTestSucceeded
+```
+
+Results:
+
+- Port `22`: exit code `0`, `TcpTestSucceeded : False`; warning: TCP connect failed and ping timed out.
+- Port `8091`: exit code `0`, `TcpTestSucceeded : False`; warning: TCP connect failed and ping timed out.
+
+Status: current Windows/Codex environment cannot reach host `192.168.0.166` on SSH or viewer port. This is a reachability/network/IP/host issue, not evidence that another user login blocked SSH. Next action: instruct user to use the already open Ubuntu terminal/VM console and check IP, SSH service, firewall, and active logins.
