@@ -8700,3 +8700,358 @@ Results:
 - Elevated `git push origin main`: exit code `0`; pushed `main` from `45898bd` to `107035b`.
 
 Status: successful. GitHub now contains the viewer product-folder-column fix through commit `107035b`. Next action: commit and push this final push-result log entry.
+
+## 2026-06-02 - Viewer issue: user reports live page still not updated
+
+Action: user provided a new screenshot of `http://192.168.0.166:8091` showing the product table still without `Папка` / `Код папки` columns and without the expected build marker in the header.
+
+Observed from screenshot:
+
+- Page still shows `1C CRM Mirror Viewer`.
+- Header shows `Зріз: 2026-06-02 15:19:27 UTC`, `Імпорт триває...`, `read-only`.
+- Header does not show `build: 2026-06-02-product-folder-columns-2`.
+- Product table columns are still old: `Код`, `Товар`, `Видалено`, `Цін`, `Мін. ціна`, `Макс. ціна`, `Валюти`, without `Папка` / `Код папки`.
+
+Status: live viewer is still serving an old runtime or an old service process. Next action: probe live `/health`, `/`, and `/api/data` from this machine to confirm whether the active service exposes the new build marker.
+
+## 2026-06-02 - Viewer issue: live HTTP probe from Windows shell blocked by auth
+
+Action: probed the live viewer endpoints from the Windows shell.
+
+Command:
+
+```powershell
+$ErrorActionPreference='Continue'
+Write-Output '=== health ==='
+try {
+  (Invoke-WebRequest -UseBasicParsing -Uri 'http://192.168.0.166:8091/health' -TimeoutSec 5).Content
+} catch {
+  Write-Output "ERROR $($_.Exception.Message)"
+}
+Write-Output '=== html markers ==='
+try {
+  $html=(Invoke-WebRequest -UseBasicParsing -Uri 'http://192.168.0.166:8091/' -TimeoutSec 5).Content
+  if ($html -match 'viewerBuild|VIEWER_BUILD|product-folder-columns|product_group_name|Код папки|Папка') {
+    Write-Output 'markers-found'
+    $matches[0]
+  } else {
+    Write-Output 'markers-missing'
+  }
+} catch {
+  Write-Output "ERROR $($_.Exception.Message)"
+}
+Write-Output '=== api markers ==='
+try {
+  $json=(Invoke-WebRequest -UseBasicParsing -Uri 'http://192.168.0.166:8091/api/data' -TimeoutSec 10).Content
+  if ($json -match 'viewerBuild|product_group_name|product_group_code|product_folders') {
+    Write-Output 'api-markers-found'
+    $matches[0]
+  } else {
+    Write-Output 'api-markers-missing'
+  }
+  if ($json.Length -gt 500) {
+    Write-Output "api-length $($json.Length)"
+  } else {
+    $json
+  }
+} catch {
+  Write-Output "ERROR $($_.Exception.Message)"
+}
+```
+
+Result:
+
+- Exit code: `0`.
+- `/health`: HTTP `401 Unauthorized`.
+- `/`: HTTP `401 Unauthorized`.
+- `/api/data`: HTTP `401 Unauthorized`.
+
+Status: probe reached the viewer but could not inspect content because shell requests do not include the browser's saved Basic Auth credentials. Next action: inspect through the in-app browser/session if possible, then prepare server-side verification commands.
+
+## 2026-06-02 - Viewer issue: browser session attempt failed
+
+Action: loaded the Browser plugin instructions and attempted to attach to the in-app browser to inspect the live viewer page with a browser session.
+
+Commands/tool calls:
+
+```powershell
+Get-Content 'C:\Users\User\.codex\plugins\cache\openai-bundled\browser\26.527.31326\skills\control-in-app-browser\SKILL.md' | Select-Object -First 120
+Get-Content 'C:\Users\User\.codex\plugins\cache\openai-bundled\browser\26.527.31326\skills\control-in-app-browser\SKILL.md'
+```
+
+```javascript
+if (!globalThis.agent) {
+  const { setupBrowserRuntime } = await import('C:/Users/User/.codex/plugins/cache/openai-bundled/browser/26.527.31326/scripts/browser-client.mjs');
+  await setupBrowserRuntime({ globals: globalThis });
+}
+if (!globalThis.browser) {
+  globalThis.browser = await agent.browsers.get('iab');
+}
+await browser.nameSession('CRM viewer check');
+if (typeof tab === 'undefined') {
+  globalThis.tab = await browser.tabs.selected();
+}
+const info = { url: await tab.url(), title: await tab.title() };
+nodeRepl.write(JSON.stringify(info, null, 2));
+```
+
+Results:
+
+- First partial skill read: exit code `0`; read the first 120 lines.
+- Full skill read: exit code `0`; read the complete Browser skill file.
+- Browser attach attempt: failed; Node-backed browser kernel exited unexpectedly with diagnostics `windows sandbox failed: spawn setup refresh`.
+
+Status: browser inspection failed due local browser automation runtime startup failure. Next action: continue with server-side diagnosis and provide/repo-commit a stronger repair script/commands for the live Ubuntu service.
+
+## 2026-06-02 - Viewer issue: browser session retry failed
+
+Action: reset the browser automation runtime and retried attaching to the in-app browser.
+
+Tool calls:
+
+```json
+{
+  "tool": "mcp__node_repl.js_reset"
+}
+```
+
+```javascript
+if (!globalThis.agent) {
+  const { setupBrowserRuntime } = await import('C:/Users/User/.codex/plugins/cache/openai-bundled/browser/26.527.31326/scripts/browser-client.mjs');
+  await setupBrowserRuntime({ globals: globalThis });
+}
+if (!globalThis.browser) {
+  globalThis.browser = await agent.browsers.get('iab');
+}
+await browser.nameSession('CRM viewer check');
+if (typeof tab === 'undefined') {
+  globalThis.tab = await browser.tabs.selected();
+}
+nodeRepl.write(JSON.stringify({ url: await tab.url(), title: await tab.title() }, null, 2));
+```
+
+Results:
+
+- `mcp__node_repl.js_reset`: successful; JavaScript kernel reset.
+- Second browser attach attempt: failed again; kernel exited unexpectedly with `windows sandbox failed: spawn setup refresh`.
+
+Status: browser-based inspection is blocked by the local browser automation runtime. Next action: check whether SSH access to `192.168.0.166` is available from this machine so the Ubuntu service can be inspected directly.
+
+## 2026-06-02 - Viewer issue: SSH reachability check
+
+Action: checked whether the Ubuntu host is reachable over SSH and whether non-interactive SSH access is already available.
+
+Commands:
+
+```powershell
+Test-NetConnection -ComputerName 192.168.0.166 -Port 22 | Format-List ComputerName,RemoteAddress,RemotePort,TcpTestSucceeded
+ssh -o BatchMode=yes -o ConnectTimeout=5 crmadmin@192.168.0.166 "hostname && pwd"
+```
+
+Results:
+
+- `Test-NetConnection`: exit code `0`; `TcpTestSucceeded : True`.
+- `ssh -o BatchMode=yes ...`: exit code `1`; failed with `Host key verification failed.`
+
+Status: host is reachable on SSH port 22, but the current Windows SSH client has not accepted/verifed the host key. Next action: retry using a workspace-local known_hosts file so system/user SSH config is not modified.
+
+## 2026-06-02 - Viewer issue: SSH auth unavailable from Codex shell
+
+Action: retried SSH with a workspace-local known_hosts file to avoid modifying the user's system SSH config.
+
+Command:
+
+```powershell
+ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=D:\Codex\CRM\SQL\.codex_known_hosts crmadmin@192.168.0.166 "hostname && pwd"
+```
+
+Result:
+
+- Exit code: `1`.
+- SSH accepted the host key into `D:\Codex\CRM\SQL\.codex_known_hosts`.
+- Authentication failed:
+
+```text
+crmadmin@192.168.0.166: Permission denied (publickey,password).
+```
+
+Status: direct server update from this Codex shell is blocked because no non-interactive SSH key/password is available. Next action: remove the temporary workspace-local `.codex_known_hosts` file created by this test and provide copy-paste Ubuntu commands for the already open `crmadmin@crm-sql` terminal.
+
+## 2026-06-02 - Viewer issue: temporary SSH known_hosts removed
+
+Action: removed the workspace-local `.codex_known_hosts` file created during the SSH reachability test.
+
+Command:
+
+```powershell
+$target = Resolve-Path 'D:\Codex\CRM\SQL\.codex_known_hosts'
+$workspace = (Resolve-Path 'D:\Codex\CRM\SQL').Path
+if (-not $target.Path.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+  throw "Refusing to remove outside workspace: $($target.Path)"
+}
+Remove-Item -LiteralPath $target.Path -Force
+Write-Output "removed $($target.Path)"
+```
+
+Result:
+
+- Exit code: `0`.
+- Removed `D:\Codex\CRM\SQL\.codex_known_hosts`.
+
+Status: successful. Next action: strengthen the Ubuntu helper script with process/service diagnostics.
+
+## 2026-06-02 - Viewer issue: helper script strengthened with service diagnostics
+
+Action: updated the Ubuntu helper script to print Git `HEAD`, systemd `ExecStart`, `WorkingDirectory`, `MainPID`, and the active viewer process command line before/after restart.
+
+Commands:
+
+```powershell
+apply_patch
+& 'C:\Program Files\Git\bin\bash.exe' -n scripts/ubuntu/apply-1c-viewer-product-folder-update.sh dist/crm-product-folder-update-2026-06-02/ubuntu-home-crmadmin-SQL/scripts/ubuntu/apply-1c-viewer-product-folder-update.sh
+git status --short --branch
+Compress-Archive -Path 'dist\crm-product-folder-update-2026-06-02\*' -DestinationPath 'dist\crm-product-folder-update-2026-06-02.zip' -Force
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead('D:\Codex\CRM\SQL\dist\crm-product-folder-update-2026-06-02.zip')
+try {
+  $entry = $zip.GetEntry('ubuntu-home-crmadmin-SQL\scripts\ubuntu\apply-1c-viewer-product-folder-update.sh')
+  if ($null -eq $entry) {
+    Write-Output 'helper-missing'
+  } else {
+    Write-Output "helper-present size=$($entry.Length)"
+  }
+} finally {
+  $zip.Dispose()
+}
+git diff --stat
+rg -n "service definition before restart|active viewer process|MainPID|rev-parse" scripts\ubuntu\apply-1c-viewer-product-folder-update.sh dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\apply-1c-viewer-product-folder-update.sh
+```
+
+Results:
+
+- `apply_patch`: exit code `0`; updated main and packaged helper scripts.
+- Git Bash `bash -n`: exit code `0`; helper scripts have valid Bash syntax.
+- `git status --short --branch`: exit code `0`; branch aligned with origin and helper/log changes are unstaged.
+- `Compress-Archive`: exit code `0`; refreshed delivery zip.
+- Zip inspection: exit code `0`; `helper-present size=2766`.
+- `git diff --stat`: exit code `0`; changed zip, main helper, packaged helper, and work log.
+- `rg`: exit code `0`; confirmed diagnostic markers exist in both helper scripts.
+
+Status: successful. Next action: stage, commit, and push the stronger helper diagnostics and updated log.
+
+## 2026-06-02 - Viewer issue: helper diagnostics staged
+
+Action: staged the stronger helper diagnostics and verified the staged diff.
+
+Commands:
+
+```powershell
+git add -A
+git diff --cached --check
+git status --short --branch
+git diff --cached --stat
+```
+
+Results:
+
+- `git add -A`: exit code `0`; Git repeated LF-to-CRLF warnings for the packaged helper script and work log.
+- `git diff --cached --check`: exit code `0`; no whitespace errors.
+- `git status --short --branch`: exit code `0`; staged files are updated zip, packaged helper, work log, and main helper.
+- `git diff --cached --stat`: exit code `0`; `4 files changed, 361 insertions(+)`.
+
+Status: successful. Next action: stage this log entry, commit, and push.
+
+## 2026-06-02 - Marketplace CRM: NovaPay gateway and TTN payment reconciliation
+
+Action: implemented safe NovaPay integration in the local Marketplace CRM prototype through a server-side gateway, without storing a private NovaPay key in browser code, and added automatic CRM payment creation when NovaPay TTN and amount match CRM data.
+
+Files changed:
+
+- `D:\Codex\CRM\marketplace-crm\app.js`
+- `D:\Codex\CRM\marketplace-crm\index.html`
+- `D:\Codex\CRM\marketplace-crm\mock-api.ps1`
+
+Implemented:
+
+- Added `settings.novaPay` with gateway URL, mode, public/merchant ID, account ID, auto-create flag, last status, last import, and last error code.
+- Added `novaPayTransactions` demo data with one matching payment, one empty-TTN error case, and one amount-mismatch error case.
+- Added NovaPay role permissions:
+  - document permissions `novaPayApi` and `novaPayReconciliation`;
+  - field lock `novaPay`.
+- Added `Settings -> Data exchange -> NovaPay API gateway` UI. The UI intentionally has no private-key field.
+- Added `Finance -> Payments -> NovaPay: roznesennia oplat po TTN` UI with:
+  - gateway import button;
+  - manual JSON import;
+  - demo JSON fill;
+  - re-reconcile button;
+  - result table with codes and CRM payment IDs.
+- Added reconciliation logic:
+  - normalize NovaPay payment rows;
+  - find marketplace order by TTN, with invoice-by-TTN fallback;
+  - validate amount in CRM currency;
+  - create CRM payment automatically;
+  - update invoice paid amount/status;
+  - update marketplace order payment status to `paid`;
+  - prevent re-creating the same NovaPay transaction.
+- Added required NovaPay error codes:
+  - `NPAY_EMPTY_TTN`
+  - `NPAY_NO_ORDER_BY_TTN`
+  - `NPAY_AMOUNT_MISMATCH`
+  - `NPAY_GATEWAY_ERROR`
+  - `NPAY_SIGNATURE_ERROR`
+  - `NPAY_IMPORT_PARSE_ERROR`
+- Added mock gateway endpoint `GET /api/novapay/payments`.
+- Updated app version:
+  - `APP_VERSION`: `2026.06.02.8`
+  - `APP_BUILD`: `20260602-novapay-gateway-1`
+  - build time: `18:39`
+
+Commands and checks:
+
+```powershell
+Get-Content D:\Codex\CRM\SQL\docs\marketplace-crm-handoff-2026-06-02-novapay.md
+Get-Content D:\Codex\CRM\SQL\docs\crm-sql-work-log-2026-06-01.md -Tail 120
+rg --files
+rg -n "APP_VERSION|settings|payments|..." app.js
+rg -n "api/|orders|payments|..." mock-api.ps1
+Get-Date -Format 'yyyy-MM-dd HH:mm zzz'
+node --check app.js
+& C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe --check app.js
+[scriptblock]::Create((Get-Content -Raw -Path .\mock-api.ps1)) | Out-Null
+Invoke-WebRequest http://127.0.0.1:8789/index.html
+Invoke-WebRequest http://127.0.0.1:8789/api/novapay/payments
+Invoke-WebRequest http://127.0.0.1:8793/index.html
+Invoke-WebRequest http://127.0.0.1:8793/api/novapay/payments
+rg -n "privateKey|private_key|secret|x-sign|NovaPay" app.js index.html mock-api.ps1
+```
+
+Successful results:
+
+- Handoff, current log, and repository file list were read successfully.
+- `app.js` syntax check succeeded with bundled Node runtime.
+- `mock-api.ps1` parsed successfully with `[scriptblock]::Create(...)`.
+- Updated prototype started successfully on `http://127.0.0.1:8793/index.html`.
+- `index.html` on port `8793` returned status `200` and script build `20260602-novapay-gateway-1`.
+- `GET http://127.0.0.1:8793/api/novapay/payments` returned status `200` with:
+  - `ok = true`;
+  - `signedOnServer = true`;
+  - `privateKeyInBrowser = false`;
+  - three demo NovaPay payments.
+- Search confirmed no browser-side private key field/variable was added. The only `x-sign` mention is explanatory text saying the signature stays on the server gateway.
+- No 1C production server restart was performed.
+- No write-back to 1C was performed.
+
+Errors and blocked checks:
+
+- `CRM_FILE_NOT_FOUND`: attempted to read `D:\Codex\CRM\marketplace-crm\package.json`; file does not exist. Not blocking because this prototype uses `index.html`, `app.js`, `styles.css`, and `mock-api.ps1`.
+- `CRM_RG_QUOTE_ERROR`: one exploratory `rg` command failed because PowerShell misparsed embedded quotes in the search pattern. Repeated with safer patterns.
+- `CRM_GIT_DIFF_CONTEXT_ERROR`: `git diff -- app.js index.html mock-api.ps1` failed from `marketplace-crm` because the folder did not behave as a normal git checkout/pathspec context. Not blocking for implementation.
+- `CRM_NODE_ACCESS_DENIED`: system `node --check app.js` failed with `Access denied`. Repeated successfully with bundled Node runtime.
+- `CRM_NOVAPAY_ENDPOINT_404_ON_8789`: existing server on `127.0.0.1:8789` served `index.html` but returned `404` for `/api/novapay/payments`, meaning it was an older local mock process.
+- `CRM_LOCAL_SERVER_START_NO_LISTENER`: non-elevated background starts on ports `8791` and `8792` returned without leaving a listening server.
+- `CRM_PROCESS_QUERY_ACCESS_DENIED`: `Get-CimInstance Win32_Process -Filter "ProcessId=31636"` failed with access denied while diagnosing an unrelated listener.
+- `CRM_FOREGROUND_SERVER_TIMEOUT_DIAGNOSTIC`: foreground diagnostic run on port `8793` timed out after printing normal startup lines because the server stayed running and waited for requests. This confirmed the script itself starts correctly.
+- `CRM_ESCALATION_REJECTED_WIDE_BIND`: elevated start on `0.0.0.0:8793` was rejected due network-wide exposure risk. Safer elevated start on `127.0.0.1:8793` succeeded.
+- `CRM_BROWSER_RUNTIME_FAILED`: Browser plugin runtime through Node REPL failed twice with sandbox `spawn setup refresh`; visual browser verification was not completed. HTTP, syntax, endpoint, and static UI checks were completed instead.
+
+Status: implementation and non-browser verification succeeded. Updated local prototype is available at `http://127.0.0.1:8793/index.html`. Existing `8789` still appears to be an older local process and was not stopped.

@@ -15,9 +15,13 @@ git status --short --branch
 echo "=== update repo ==="
 git fetch origin main
 git pull --ff-only origin main
+git rev-parse --short HEAD
 
 echo "=== verify viewer file markers ==="
 grep -n "VIEWER_BUILD\|product_group_name\|product_group_code\|crm_product_folders" scripts/ubuntu/run-1c-crm-viewer.py | head -40
+
+echo "=== service definition before restart ==="
+systemctl show "${SERVICE_NAME}.service" -p ExecStart -p WorkingDirectory -p MainPID --no-pager
 
 echo "=== apply crm-ready SQL views ==="
 sudo -u postgres psql -X -d "${DB_NAME}" -v ON_ERROR_STOP=1 -f db/migrations/003_one_c_crm_ready_views.sql
@@ -36,6 +40,16 @@ echo "=== restart viewer ==="
 sudo systemctl restart "${SERVICE_NAME}.service"
 sleep 3
 sudo systemctl --no-pager status "${SERVICE_NAME}.service"
+
+echo "=== active viewer process ==="
+main_pid="$(systemctl show "${SERVICE_NAME}.service" -p MainPID --value)"
+echo "MainPID=${main_pid}"
+if [[ "${main_pid}" =~ ^[0-9]+$ && "${main_pid}" != "0" ]]; then
+  sudo tr '\0' ' ' <"/proc/${main_pid}/cmdline"
+  echo
+else
+  echo "No active MainPID for ${SERVICE_NAME}.service"
+fi
 
 auth_args=()
 if [[ -r "${ENV_FILE}" ]]; then
