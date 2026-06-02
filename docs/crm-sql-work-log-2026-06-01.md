@@ -9848,3 +9848,19 @@ Results:
 - Port `8091`: exit code `0`, `TcpTestSucceeded : False`; warning: TCP connect failed and ping timed out.
 
 Status: current Windows/Codex environment cannot reach host `192.168.0.166` on SSH or viewer port. This is a reachability/network/IP/host issue, not evidence that another user login blocked SSH. Next action: instruct user to use the already open Ubuntu terminal/VM console and check IP, SSH service, firewall, and active logins.
+## 2026-06-02 - Ubuntu terminal is no longer open
+
+Action: user reported that there is no open Ubuntu terminal/window anymore.
+
+Current state:
+
+- Earlier Windows-side checks showed `192.168.0.166` is not reachable from Windows/Codex on ports `22` and `8091`.
+- User no longer has the already-authenticated `crmadmin@crm-sql:~/SQL` terminal that could run local server diagnostics.
+- Therefore the next step is to regain Ubuntu console/SSH access before continuing viewer repair.
+
+Diagnosis:
+
+- If SSH to `192.168.0.166` times out, opening another PowerShell and running the same `ssh crmadmin@192.168.0.166` will not help until the Ubuntu host/IP/network is reachable again.
+- Need either a direct VM/server console or the current Ubuntu IP address.
+
+Status: blocked on Ubuntu access. Next action: provide Windows-side steps to reopen/find the Ubuntu host, then reconnect with SSH once reachable.
