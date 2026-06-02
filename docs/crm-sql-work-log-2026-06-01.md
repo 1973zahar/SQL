@@ -8676,3 +8676,27 @@ Results:
   - `dist/crm-product-folder-update-2026-06-02/ubuntu-home-crmadmin-SQL/scripts/ubuntu/apply-1c-viewer-product-folder-update.sh`
 
 Status: successful. Next action: commit this log entry and push both commits to GitHub.
+
+## 2026-06-02 - Viewer issue: fix pushed to GitHub
+
+Action: pushed the live viewer fix and its log commit to GitHub.
+
+Commands:
+
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git commit -m "Log 1C viewer folder-column fix"
+git status --short --branch
+git log --oneline -3
+git push origin main
+```
+
+Results:
+
+- `git add docs/crm-sql-work-log-2026-06-01.md`: exit code `0`; Git repeated LF-to-CRLF warning for the work log.
+- `git commit -m "Log 1C viewer folder-column fix"`: exit code `0`; commit created: `107035b`; `1 file changed, 23 insertions(+)`.
+- `git status --short --branch`: exit code `0`; `main...origin/main [ahead 2]`.
+- `git log --oneline -3`: exit code `0`; latest commits were `107035b`, `412975e`, `45898bd`.
+- Elevated `git push origin main`: exit code `0`; pushed `main` from `45898bd` to `107035b`.
+
+Status: successful. GitHub now contains the viewer product-folder-column fix through commit `107035b`. Next action: commit and push this final push-result log entry.
