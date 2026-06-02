@@ -9160,3 +9160,386 @@ Diagnosis:
 - The safe fix is to move only those untracked blockers into a timestamped backup directory, then repeat `git pull --ff-only origin main`.
 
 Status: diagnosis successful. Next action: provide backup-and-pull commands for the Ubuntu terminal, then run the viewer update helper after pull succeeds.
+
+## 2026-06-02 19:59:29 +03:00
+- Command:
+```powershell
+<append inspection results with embedded rg pattern>
+```
+- Result: Failed to append the inspection summary because PowerShell misparsed the embedded regex text inside the logging command.
+- Exit code: 1
+- Error text: Unexpected token '(' / incomplete hash literal / missing closing ')' while parsing the logging script.
+- Status: failed
+- Next action: Retry the log append using safer quoting via here-strings and simpler command text.
+
+## 2026-06-02 19:59:47 +03:00
+- Command:
+```powershell
+git status --short --branch
+```
+- Result: Git branch is main tracking origin/main. The only modified file is docs/crm-sql-work-log-2026-06-01.md.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Review diffs and safety checks before staging the work log.
+
+## 2026-06-02 19:59:47 +03:00
+- Command:
+```powershell
+git remote -v
+```
+- Result: Confirmed origin fetch/push URL is https://github.com/1973zahar/SQL.git.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Use origin for any eventual push if repository checks remain clean.
+
+## 2026-06-02 19:59:47 +03:00
+- Command:
+```powershell
+git diff --cached --stat
+```
+- Result: No staged changes were present at inspection time.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Continue with unstaged diff review and stage only safe changes.
+
+## 2026-06-02 19:59:47 +03:00
+- Command:
+```powershell
+git status --ignored --short
+```
+- Result: Only the work log is currently modified; no additional ignored/cache noise appeared in the short status output.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Inspect repository diffs and large files next.
+
+## 2026-06-02 19:59:47 +03:00
+- Command:
+```powershell
+Get-ChildItem -Recurse -File | Sort-Object Length -Descending | Select-Object -First 20 FullName,Length
+```
+- Result: Largest files are expected artifacts such as .docx, dist bundles, and repository documentation/work-log files. No unexpected new oversized file appeared in the current modification set.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Keep commit scope narrow and avoid staging unrelated large artifacts.
+
+## 2026-06-02 19:59:47 +03:00
+- Command:
+```powershell
+rg secret-pattern scan across repository text files excluding common binary extensions and .git/node_modules paths
+```
+- Result: Secret-pattern scan returned documented placeholders, templates, demo credentials, and prior log references. No obvious live secret stood out in the scanned output.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Run diff-focused checks to confirm only intended log changes will be committed.
+## 2026-06-02 20:00:53 +03:00
+- Command: `powershell
+git diff --stat
+`
+- Result: Unstaged diff contains only docs/crm-sql-work-log-2026-06-01.md with appended automation entries.
+- Exit code: 0
+- Error text: Git also warned that LF would be replaced by CRLF on future checkout/update of the file.
+- Status: ok
+- Next action: Inspect the actual diff content and fix any formatting issues before staging.
+
+## 2026-06-02 20:00:53 +03:00
+- Command:
+```powershell
+git diff -- docs/crm-sql-work-log-2026-06-01.md
+```
+- Result: Reviewed the actual work-log diff and confirmed the new content is limited to the current automation run notes.
+- Exit code: 0
+- Error text: Git repeated the LF/CRLF warning for the working copy.
+- Status: ok
+- Next action: Run git diff --check to catch whitespace or patch hygiene issues.
+
+## 2026-06-02 20:00:53 +03:00
+- Command:
+```powershell
+git diff --check
+```
+- Result: Whitespace check failed on the newly appended work-log entries because of trailing whitespace and a blank line at EOF.
+- Exit code: 1
+- Error text: Trailing whitespace reported on several new lines and new blank line at EOF in docs/crm-sql-work-log-2026-06-01.md.
+- Status: failed
+- Next action: Edit the work-log formatting to remove trailing whitespace and the extra EOF blank line.
+
+## 2026-06-02 20:00:53 +03:00
+- Command:
+```powershell
+$files = git ls-files; $files | ForEach-Object { $item = Get-Item $_ -ErrorAction SilentlyContinue; if ($item) { [PSCustomObject]@{ FullName = $item.FullName; Length = $item.Length } } } | Sort-Object Length -Descending | Select-Object -First 20 FullName,Length
+```
+- Result: Reviewed the largest tracked files only. They are expected repository assets and archives; none are part of the current unstaged change set.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Keep staging limited to the cleaned work-log file.
+
+## 2026-06-02 20:00:53 +03:00
+- Command:
+```powershell
+apply_patch on docs/crm-sql-work-log-2026-06-01.md to convert malformed inline code blocks into fenced blocks and remove whitespace issues
+```
+- Result: Patched the latest work-log entries to use fenced PowerShell blocks and removed the whitespace problems introduced by the earlier append.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Re-run diff hygiene checks, then stage and commit if clean.
+
+## 2026-06-02 20:01:36 +03:00
+- Command:
+```powershell
+git diff --check
+```
+- Result: Whitespace check still failed after the first cleanup pass because two later appended entries still had trailing spaces and there was a blank line at EOF.
+- Exit code: 1
+- Error text: Trailing whitespace at lines 9276 and 9286, plus new blank line at EOF in docs/crm-sql-work-log-2026-06-01.md.
+- Status: failed
+- Next action: Patch the specific later entries to remove inline-code formatting issues and blank trailing fields.
+
+## 2026-06-02 20:01:36 +03:00
+- Command:
+```powershell
+apply_patch on docs/crm-sql-work-log-2026-06-01.md to convert the later inline command blocks to fenced code blocks and remove trailing blanks
+```
+- Result: Cleaned the remaining malformed command blocks and blank Error text field spacing in the latest work-log entries.
+- Exit code: 0
+- Error text: none
+- Status: ok
+- Next action: Re-run git diff --check; if clean, stage the work log and validate the staged diff.
+## 2026-06-02 20:03:47 +03:00
+- Command:
+`powershell
+git diff --check
+`
+- Result: Worktree diff hygiene passed except for the LF/CRLF warning; no trailing-whitespace findings remained after cleanup.
+- Exit code: 0
+- Error text: warning: in the working copy of docs/crm-sql-work-log-2026-06-01.md, LF will be replaced by CRLF the next time Git touches it.
+- Status: ok
+- Next action: Stage the work-log file and run staged diff checks.
+
+## 2026-06-02 20:03:47 +03:00
+- Command:
+`powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+`
+- Result: Staging failed. Git could not insert the work-log blob into the repository object database.
+- Exit code: 1
+- Error text: error: insufficient permission for adding an object to repository database .git/objects; failed to insert into database; unable to index file.
+- Status: failed
+- Next action: Inspect .git object-store permissions and verify whether object writes fail outside git add as well.
+
+## 2026-06-02 20:03:47 +03:00
+- Command:
+`powershell
+Get-Item .git\\objects; Get-ChildItem .git -Force; git status --short
+`
+- Result: Confirmed the worktree is writable and only docs/crm-sql-work-log-2026-06-01.md is modified. Git metadata directories are present.
+- Exit code: 0
+- Error text: none
+- Status: ok
+- Next action: Check ACLs and direct object writes in .git/objects.
+
+## 2026-06-02 20:03:47 +03:00
+- Command:
+`powershell
+icacls .git\\objects; Write-Output test | git hash-object -w --stdin; Get-ChildItem .git\\objects -Force; Get-ChildItem .git -Filter *.lock -Force
+`
+- Result: ACLs look writable for the sandbox user. Direct stdin object write succeeded, and no git lock file was present.
+- Exit code: 0/1 mixed
+- Error text: One exploratory here-string variant for git hash-object failed from PowerShell syntax before the successful retry; no repository lock file was found.
+- Status: ok
+- Next action: Re-try git add, then isolate whether the problem is specific to the work-log object path.
+
+## 2026-06-02 20:03:47 +03:00
+- Command:
+`powershell
+git add docs/crm-sql-work-log-2026-06-01.md; git hash-object docs/crm-sql-work-log-2026-06-01.md; git hash-object -w docs/crm-sql-work-log-2026-06-01.md
+`
+- Result: Retry confirmed the problem is file-specific in the object database path for this work-log blob. Non-writing hash succeeded, but writing that file object failed.
+- Exit code: 1
+- Error text: git add and git hash-object -w both failed with insufficient permission for adding an object to repository database .git/objects.
+- Status: failed
+- Next action: Inspect the target object-prefix directory and test direct file creation there.
+
+## 2026-06-02 20:03:47 +03:00
+- Command:
+`powershell
+Inspect .git\\objects\\c5, icacls .git\\objects\\c5, and Set-Content .git\\objects\\c5\\codex-write-test.tmp
+`
+- Result: The target object directory c5 exists, but direct file creation inside it fails with access denied. This blocks staging, commit, and push from the current shell.
+- Exit code: 1
+- Error text: Set-Content: Access denied for D:\\Codex\\CRM\\SQL\\.git\\objects\\c5\\codex-write-test.tmp.
+- Status: failed
+- Next action: Stop without forcing repository repair. Report the local .git object-store permission blocker clearly.
+
+## 2026-06-02 - Viewer startup blocks before opening port
+
+Action: user provided screenshot from Ubuntu helper run after pull blocker was resolved.
+
+Observed terminal output:
+
+```text
+=== verify crm_products folder columns ===
+column_name
+is_group
+product_group_code
+product_group_name
+product_group_ref
+(4 rows)
+
+=== restart viewer ===
+crm-1c-viewer.service - CRM 1C read-only web viewer
+Active: active (running)
+Main PID: 53349 (python3)
+CGroup:
+  /usr/bin/python3 /home/crmadmin/SQL/scripts/ubuntu/run-1c-crm-viewer.py --host 0.0.0.0 --port 8091 --use-postgres-sudo
+  sudo -n -u postgres psql ... COPY (... FROM one_c_mirror.crm_products ...)
+
+=== viewer health ===
+curl: (7) Failed to connect to 127.0.0.1 port 8091 after 0 ms: Could not connect to server
+```
+
+Diagnosis:
+
+- GitHub update and SQL migration now succeeded.
+- PostgreSQL view `one_c_mirror.crm_products` has all required folder fields.
+- The service process is running the correct script path.
+- The viewer still has not opened port `8091` because `main()` currently calls `load_payload(args)` before creating `ThreadingHTTPServer`.
+- While `load_payload()` is still running expensive PostgreSQL `COPY` queries, systemd shows the process as active, but `/health` cannot connect yet.
+
+Status: diagnosis successful. Next action: change the viewer to start HTTP immediately with a schema-only/loading payload, then load SQL data in a background thread.
+
+## 2026-06-02 - Viewer startup: async HTTP startup implemented
+
+Action: changed the Ubuntu viewer so HTTP starts immediately while SQL data loads in a background thread. This fixes the state where systemd reports `active (running)` but `/health` cannot connect because startup is still blocked inside PostgreSQL `COPY`.
+
+Files changed:
+
+- `scripts/ubuntu/run-1c-crm-viewer.py`
+- `dist/crm-product-folder-update-2026-06-02/ubuntu-home-crmadmin-SQL/scripts/ubuntu/run-1c-crm-viewer.py`
+- `docs/one-c-mirror-import.md`
+- `dist/crm-product-folder-update-2026-06-02/docs/one-c-mirror-import.md`
+- `dist/crm-product-folder-update-2026-06-02.zip`
+
+Commands:
+
+```powershell
+Get-Content scripts\ubuntu\run-1c-crm-viewer.py -TotalCount 35
+Get-Content scripts\ubuntu\run-1c-crm-viewer.py | Select-Object -Skip 960 -First 140
+Get-Content scripts\ubuntu\run-1c-crm-viewer.py | Select-Object -Skip 1210 -First 175
+Get-Content scripts\ubuntu\run-1c-crm-viewer.py | Select-Object -Skip 1380 -First 90
+apply_patch
+rg -n "product-folder-columns-2|product-folder-columns-3|Loading data from SQL|empty_payload|threading|loading=" scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py docs\one-c-mirror-import.md dist\crm-product-folder-update-2026-06-02\docs\one-c-mirror-import.md
+& 'C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m py_compile scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+git diff --stat
+apply_patch
+Get-ChildItem -Path scripts\ubuntu,dist\crm-product-folder-update-2026-06-02 -Recurse -Directory -Filter __pycache__ | Select-Object -ExpandProperty FullName
+rg -n "product-folder-columns-2|product-folder-columns-3" scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py docs\one-c-mirror-import.md dist\crm-product-folder-update-2026-06-02\docs\one-c-mirror-import.md
+$workspace = (Resolve-Path 'D:\Codex\CRM\SQL').Path
+$targets = @(
+  'scripts\ubuntu\__pycache__',
+  'dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\__pycache__'
+) | ForEach-Object { Resolve-Path $_ -ErrorAction SilentlyContinue }
+foreach ($target in $targets) {
+  if (-not $target.Path.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove outside workspace: $($target.Path)"
+  }
+}
+foreach ($target in $targets) {
+  Remove-Item -LiteralPath $target.Path -Recurse -Force
+  Write-Output "removed $($target.Path)"
+}
+Compress-Archive -Path 'dist\crm-product-folder-update-2026-06-02\*' -DestinationPath 'dist\crm-product-folder-update-2026-06-02.zip' -Force
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead('D:\Codex\CRM\SQL\dist\crm-product-folder-update-2026-06-02.zip')
+try {
+  $zip.Entries |
+    Where-Object { $_.FullName -match 'run-1c-crm-viewer.py|one-c-mirror-import.md|__pycache__' } |
+    Select-Object -ExpandProperty FullName
+} finally {
+  $zip.Dispose()
+}
+& 'C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m py_compile scripts\ubuntu\run-1c-crm-viewer.py dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\run-1c-crm-viewer.py
+git diff --stat
+Get-ChildItem -Path scripts\ubuntu,dist\crm-product-folder-update-2026-06-02 -Recurse -Directory -Filter __pycache__ | Select-Object -ExpandProperty FullName
+$workspace = (Resolve-Path 'D:\Codex\CRM\SQL').Path
+$targets = @(
+  'scripts\ubuntu\__pycache__',
+  'dist\crm-product-folder-update-2026-06-02\ubuntu-home-crmadmin-SQL\scripts\ubuntu\__pycache__'
+) | ForEach-Object { Resolve-Path $_ -ErrorAction SilentlyContinue }
+foreach ($target in $targets) {
+  if (-not $target.Path.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove outside workspace: $($target.Path)"
+  }
+}
+foreach ($target in $targets) {
+  Remove-Item -LiteralPath $target.Path -Recurse -Force
+  Write-Output "removed $($target.Path)"
+}
+```
+
+Results:
+
+- File inspections: exit code `0`; confirmed old blocking path in `main()` loaded SQL before creating `ThreadingHTTPServer`.
+- Viewer patch `apply_patch`: exit code `0`; added `threading`, build `2026-06-02-product-folder-columns-3`, schema-only `empty_payload`, background `load_initial_payload`, `/health` `loading=true/false`, and frontend loading refresh.
+- First marker `rg`: exit code `0`; confirmed async markers and identified docs still referenced `product-folder-columns-2`.
+- First bundled `py_compile`: exit code `0`; viewer scripts syntactically valid.
+- Docs patch `apply_patch`: exit code `0`; updated docs to expected build `2026-06-02-product-folder-columns-3`.
+- `Get-ChildItem __pycache__`: exit code `0`; found two generated cache directories.
+- Build marker `rg`: exit code `0`; only `product-folder-columns-3` remains in viewer/docs.
+- Cache removal: exit code `0`; removed generated `__pycache__` directories inside the repo.
+- `Compress-Archive`: exit code `0`; rebuilt `dist/crm-product-folder-update-2026-06-02.zip`.
+- Zip inspection: exit code `0`; archive contains updated doc and viewer; no `__pycache__` entries.
+- Final bundled `py_compile`: exit code `0`; viewer scripts remain valid.
+- Final `git diff --stat`: exit code `0`; changed zip, packaged doc, packaged viewer, work log, main doc, and main viewer.
+- Final cache cleanup: exit code `0`; removed two `__pycache__` directories created by final `py_compile`.
+
+Status: successful. Next action: stage, verify, commit, and push async viewer startup fix.
+
+## 2026-06-02 - Viewer startup: final pre-commit checks
+
+Action: ran final checks before staging async viewer startup fix.
+
+Commands:
+
+```powershell
+git status --short --branch
+git diff --check
+rg -n "VIEWER_BUILD|empty_payload|load_initial_payload|loading=|product-folder-columns-3|product-folder-columns-2" scripts\ubuntu\run-1c-crm-viewer.py docs\one-c-mirror-import.md
+```
+
+Results:
+
+- `git status --short --branch`: exit code `0`; branch aligned with `origin/main`, with six modified files.
+- `git diff --check`: exit code `0`; no whitespace errors; Git repeated LF-to-CRLF warnings.
+- `rg`: exit code `0`; confirmed `VIEWER_BUILD`, `empty_payload`, `load_initial_payload`, `/health loading=...`, and `product-folder-columns-3`; no `product-folder-columns-2` match in checked files.
+
+Status: successful. Next action: stage, verify staged diff, commit, and push.
+
+## 2026-06-02 - Viewer startup: staged diff verified
+
+Action: staged the async viewer startup fix and verified the staged diff.
+
+Commands:
+
+```powershell
+git add -A
+git diff --cached --check
+git status --short --branch
+git diff --cached --stat
+```
+
+Results:
+
+- `git add -A`: exit code `0`; Git repeated LF-to-CRLF warnings for modified text files.
+- `git diff --cached --check`: exit code `0`; no whitespace errors.
+- `git status --short --branch`: exit code `0`; staged changes include updated zip, docs, packaged viewer, work log, and main viewer.
+- `git diff --cached --stat`: exit code `0`; `6 files changed, 519 insertions(+), 32 deletions(-)`.
+
+Status: successful. Next action: stage this log entry, commit `Start 1C viewer before SQL payload load`, and push.

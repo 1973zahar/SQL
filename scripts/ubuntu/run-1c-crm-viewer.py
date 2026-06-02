@@ -14,6 +14,7 @@ import shlex
 import socket
 import subprocess
 import sys
+import threading
 from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -21,7 +22,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 
-VIEWER_BUILD = "2026-06-02-product-folder-columns-2"
+VIEWER_BUILD = "2026-06-02-product-folder-columns-3"
 
 
 VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
@@ -981,11 +982,6 @@ INDEX_HTML = r"""<!doctype html>
       const start = (state.page - 1) * state.pageSize;
       const pageRows = rows.slice(start, start + state.pageSize);
 
-      if (!pageRows.length) {
-        wrap.innerHTML = '<div class="empty">Немає рядків</div>';
-        return;
-      }
-
       const header = view.columns.map(([key, label]) => {
         const sortMark = state.sortKey === key ? (state.sortDir === "asc" ? " ▲" : " ▼") : "";
         const numericClass = numericKeys.has(key) ? " numeric" : "";
@@ -1003,6 +999,9 @@ INDEX_HTML = r"""<!doctype html>
       }).join("");
 
       wrap.innerHTML = `<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
+      if (!pageRows.length) {
+        wrap.insertAdjacentHTML("beforeend", `<div class="empty">${state.payload.loading ? "Loading data from SQL..." : "No rows"}</div>`);
+      }
       wrap.querySelectorAll("th").forEach(th => {
         th.addEventListener("click", () => {
           const key = th.dataset.key;
@@ -1025,8 +1024,29 @@ INDEX_HTML = r"""<!doctype html>
     }
 
     function updateMeta() {
-      document.getElementById("loadedAt").textContent = `Зріз: ${state.payload.loadedAt}`;
+      const loading = state.payload.loading ? " - loading" : "";
+      const error = state.payload.error ? ` - error: ${state.payload.error}` : "";
+      document.getElementById("loadedAt").textContent = `Зріз: ${state.payload.loadedAt}${loading}${error}`;
       document.getElementById("viewerBuild").textContent = `build: ${state.payload.viewerBuild || "unknown"}`;
+    }
+
+    function scheduleLoadingRefresh() {
+      if (!state.payload.loading) {
+        return;
+      }
+      window.setTimeout(async () => {
+        try {
+          const response = await fetch("/api/data");
+          if (response.ok) {
+            state.payload = await response.json();
+            updateMeta();
+            render();
+          }
+        } catch (error) {
+          document.getElementById("reloadStatus").textContent = `Refresh error: ${error.message}`;
+        }
+        scheduleLoadingRefresh();
+      }, 5000);
     }
 
     function render() {
@@ -1053,6 +1073,7 @@ INDEX_HTML = r"""<!doctype html>
         updateMeta();
         updateImportButton();
         render();
+        scheduleLoadingRefresh();
       } catch (error) {
         document.getElementById("tableWrap").innerHTML = `<div class="error">${error.message}</div>`;
         document.getElementById("loadedAt").textContent = "Помилка";
@@ -1239,6 +1260,27 @@ def load_payload(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "loadedAt": datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
         "viewerBuild": VIEWER_BUILD,
+        "loading": False,
+        "error": None,
+        "views": views,
+    }
+
+
+def empty_payload(loading: bool = True, error: str | None = None) -> dict[str, Any]:
+    views: dict[str, Any] = {}
+    for key, definition in VIEW_DEFINITIONS.items():
+        views[key] = {
+            "label": definition["label"],
+            "description": definition["description"],
+            "columns": definition["columns"],
+            "rows": [],
+        }
+
+    return {
+        "loadedAt": datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
+        "viewerBuild": VIEWER_BUILD,
+        "loading": loading,
+        "error": error,
         "views": views,
     }
 
@@ -1282,6 +1324,7 @@ def run_import_command(args: argparse.Namespace) -> dict[str, str]:
 
 class ViewerHandler(BaseHTTPRequestHandler):
     payload: dict[str, Any] = {}
+    payload_lock = threading.Lock()
     app_args: argparse.Namespace | None = None
 
     def log_message(self, fmt: str, *args: Any) -> None:
@@ -1334,7 +1377,9 @@ class ViewerHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/data":
-            body = json.dumps(self.payload, ensure_ascii=False).encode("utf-8")
+            with self.payload_lock:
+                payload = self.payload
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_bytes(body, "application/json; charset=utf-8")
             return
 
@@ -1348,7 +1393,13 @@ class ViewerHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/health":
-            self.send_bytes(f"ok\nbuild={VIEWER_BUILD}\n".encode("utf-8"), "text/plain; charset=utf-8")
+            with self.payload_lock:
+                loading = bool(self.payload.get("loading"))
+                error = self.payload.get("error")
+            body_text = f"ok\nbuild={VIEWER_BUILD}\nloading={str(loading).lower()}\n"
+            if error:
+                body_text += f"error={error}\n"
+            self.send_bytes(body_text.encode("utf-8"), "text/plain; charset=utf-8")
             return
 
         self.send_bytes(b"not found\n", "text/plain; charset=utf-8", HTTPStatus.NOT_FOUND)
@@ -1371,11 +1422,13 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if path == "/api/import-now":
                 import_result = run_import_command(args)
 
-            self.__class__.payload = load_payload(args)
+            payload = load_payload(args)
+            with self.payload_lock:
+                self.__class__.payload = payload
             if path == "/api/import-now":
-                body_data: dict[str, Any] = {"payload": self.__class__.payload, "import": import_result}
+                body_data: dict[str, Any] = {"payload": payload, "import": import_result}
             else:
-                body_data = self.__class__.payload
+                body_data = payload
             body = json.dumps(body_data, ensure_ascii=False).encode("utf-8")
             self.send_bytes(body, "application/json; charset=utf-8")
         except Exception as exc:
@@ -1386,9 +1439,19 @@ class ViewerHandler(BaseHTTPRequestHandler):
 def main() -> int:
     args = parse_args()
     prime_sudo(args)
-    payload = load_payload(args)
-    ViewerHandler.payload = payload
+    ViewerHandler.payload = empty_payload(loading=True)
     ViewerHandler.app_args = args
+
+    def load_initial_payload() -> None:
+        try:
+            payload = load_payload(args)
+        except Exception as exc:
+            print(f"ERROR: initial SQL payload load failed: {exc}", file=sys.stderr)
+            payload = empty_payload(loading=False, error=str(exc))
+        with ViewerHandler.payload_lock:
+            ViewerHandler.payload = payload
+
+    threading.Thread(target=load_initial_payload, name="crm-viewer-loader", daemon=True).start()
 
     server = ThreadingHTTPServer((args.host, args.port), ViewerHandler)
     visible_host = local_ip() if args.host == "0.0.0.0" else args.host

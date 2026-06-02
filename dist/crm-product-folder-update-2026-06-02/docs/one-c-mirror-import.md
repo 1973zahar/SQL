@@ -85,10 +85,10 @@ bash scripts/ubuntu/apply-1c-viewer-product-folder-update.sh
 
 Успішний результат має показати:
 
-- `viewerBuild: 2026-06-02-product-folder-columns-2`;
+- `viewerBuild: 2026-06-02-product-folder-columns-3`;
 - `folder columns ok: True`;
 - у `product columns` мають бути `product_group_name` і `product_group_code`;
-- у верхній панелі viewer має з'явитися `build: 2026-06-02-product-folder-columns-2`.
+- у верхній панелі viewer має з'явитися `build: 2026-06-02-product-folder-columns-3`.
 
 Після цього оновіть сторінку браузера через Ctrl+F5.
 
