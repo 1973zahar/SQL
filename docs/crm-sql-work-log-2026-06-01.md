@@ -9797,3 +9797,29 @@ Diagnosis:
 - From this Codex shell, non-interactive SSH was previously blocked by missing authentication: `Permission denied (publickey,password)`.
 
 Status: informational. Next action: answer with the exact login command and note that the current screenshot already shows an active Ubuntu session.
+## 2026-06-02 - Windows PowerShell used for Bash/Linux diagnostic commands
+
+Action: user provided screenshot from `Administrator: Windows PowerShell` showing Linux/Bash diagnostic commands were pasted into Windows PowerShell.
+
+Observed terminal output:
+
+```text
+The '<' operator is reserved for future use.
+cmdlet Write-Output at command pipeline position 1
+Supply values for the following parameters:
+InputObject[0]:
+fi : The term 'fi' is not recognized as the name of a cmdlet...
+curl -v --max-time 10 http://127.0.0.1:8091/health || true
+The token '||' is not a valid statement separator in this version.
+ssh crmadmin@192.168.0.166
+ssh: connect to host 192.168.0.166 port 22: Connection timed out
+```
+
+Diagnosis:
+
+- Commands containing `fi`, heredoc/redirect syntax, and `|| true` are Bash/Linux syntax and must be run in the Ubuntu terminal `crmadmin@crm-sql`, not Windows PowerShell.
+- In Windows PowerShell, `127.0.0.1:8091` checks the Windows machine, not the Ubuntu server. From Windows, the viewer should be checked at `http://192.168.0.166:8091/health`.
+- In Windows PowerShell, `curl` can be an alias for `Invoke-WebRequest`; use `curl.exe` to run real curl.
+- SSH from Windows to `192.168.0.166:22` timed out in the screenshot, so either SSH is not reachable/running from Windows now, the IP/network route changed, or Windows firewall/VPN/network state differs. The already open `crmadmin@crm-sql:~/SQL` terminal is the correct place to continue server commands.
+
+Status: diagnosis successful. Next action: provide separate command blocks for Ubuntu terminal and Windows PowerShell.
