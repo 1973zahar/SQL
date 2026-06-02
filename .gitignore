@@ -1,4 +1,13 @@
 .env
+node_modules/
+apps/*/node_modules/
+packages/*/node_modules/
+apps/*/dist/
+packages/*/dist/
 backups/
 *.backup
 *.dump
+npm-debug.log*
+.ssh_known_hosts
+__pycache__/
+*.pyc

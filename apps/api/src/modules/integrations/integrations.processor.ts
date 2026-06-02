@@ -38,8 +38,10 @@ export class IntegrationsProcessor implements OnModuleInit, OnModuleDestroy {
     this.running = true;
     try {
       const result = await this.integrations.processPendingInbox(25);
-      if (result.processed > 0 || result.failed > 0) {
-        this.logger.log(`Processed inbox events: ${result.processed}, failed: ${result.failed}`);
+      if (result.processed > 0 || result.ignored > 0 || result.failed > 0) {
+        this.logger.log(
+          `Processed inbox events: ${result.processed}, ignored: ${result.ignored}, failed: ${result.failed}`
+        );
       }
     } catch (error) {
       this.logger.error("Integration worker failed", error);

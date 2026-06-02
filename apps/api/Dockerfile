@@ -10,7 +10,8 @@ COPY packages/integrations/package.json packages/integrations/package.json
 RUN npm install
 
 COPY . .
-RUN npm run build --workspace @crm/api
+RUN DATABASE_URL="postgresql://crm_admin:crm_admin@localhost:5432/crm_hub?schema=core" npm run prisma:generate && \
+    npm run build --workspace @crm/api
 
 EXPOSE 3000
 CMD ["npm", "run", "start", "--workspace", "@crm/api"]

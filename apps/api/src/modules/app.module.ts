@@ -4,6 +4,7 @@ import { DatabaseModule } from "../common/database/database.module.js";
 import { CustomersModule } from "./customers/customers.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { IntegrationsModule } from "./integrations/integrations.module.js";
+import { OneCMirrorModule } from "./one-c-mirror/one-c-mirror.module.js";
 import { OrdersModule } from "./orders/orders.module.js";
 import { ProductsModule } from "./products/products.module.js";
 
@@ -15,6 +16,7 @@ import { ProductsModule } from "./products/products.module.js";
     ProductsModule,
     OrdersModule,
     CustomersModule,
+    OneCMirrorModule,
     IntegrationsModule
   ]
 })

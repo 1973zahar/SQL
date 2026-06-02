@@ -6,10 +6,12 @@ CREATE ROLE crm_website_sync LOGIN PASSWORD :'crm_website_sync_password';
 CREATE ROLE crm_b2b_sync LOGIN PASSWORD :'crm_b2b_sync_password';
 CREATE ROLE crm_retail_sync LOGIN PASSWORD :'crm_retail_sync_password';
 
-GRANT USAGE ON SCHEMA core, integration, one_c TO crm_1c_sync;
+GRANT USAGE ON SCHEMA core, integration, one_c, one_c_mirror TO crm_1c_sync;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA core TO crm_1c_sync;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA integration TO crm_1c_sync;
 GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA one_c TO crm_1c_sync;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA one_c_mirror TO crm_1c_sync;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA core, integration, one_c, one_c_mirror TO crm_1c_sync;
 
 GRANT USAGE ON SCHEMA core, integration, marketplace TO crm_marketplace_sync;
 GRANT SELECT ON core.products, core.product_prices, core.stock_balances, core.warehouses TO crm_marketplace_sync;

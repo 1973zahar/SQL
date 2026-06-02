@@ -10,6 +10,55 @@ type InboxEventRow = {
   aggregate_type: string;
   aggregate_external_id: string | null;
   payload: Record<string, unknown>;
+  receivedAt: Date;
+};
+
+type ProcessEventResult =
+  | { status: "processed" }
+  | { status: "ignored"; reason: string };
+
+type OneCProductPayload = {
+  sku?: string;
+  name?: string;
+  barcode?: string;
+  unit?: string;
+  ref?: string;
+  oneCRef?: string;
+  description?: string;
+  prices?: OneCPricePayload[];
+  price?: OneCPricePayload | string | number;
+  stockBalances?: OneCStockPayload[];
+  stocks?: OneCStockPayload[];
+  stock?: OneCStockPayload;
+};
+
+type OneCPricePayload = {
+  sku?: string;
+  productSku?: string;
+  ref?: string;
+  oneCRef?: string;
+  productRef?: string;
+  priceType?: string;
+  type?: string;
+  currency?: string;
+  amount?: string | number;
+  price?: string | number;
+  validFrom?: string;
+  validTo?: string | null;
+};
+
+type OneCStockPayload = {
+  sku?: string;
+  productSku?: string;
+  ref?: string;
+  oneCRef?: string;
+  productRef?: string;
+  warehouseCode?: string;
+  warehouse?: string;
+  warehouseName?: string;
+  quantity?: string | number;
+  reservedQuantity?: string | number;
+  reserved?: string | number;
 };
 
 @Injectable()
@@ -44,6 +93,7 @@ export class IntegrationsService {
 
   async processPendingInbox(limit: number) {
     let processed = 0;
+    let ignored = 0;
     let failed = 0;
 
     for (let index = 0; index < Math.max(1, Math.min(limit, 100)); index += 1) {
@@ -53,16 +103,21 @@ export class IntegrationsService {
       }
 
       try {
-        await this.processEvent(event);
-        await this.markInboxProcessed(event.id);
-        processed += 1;
+        const result = await this.processEvent(event);
+        if (result.status === "ignored") {
+          await this.markInboxIgnored(event.id, result.reason);
+          ignored += 1;
+        } else {
+          await this.markInboxProcessed(event.id);
+          processed += 1;
+        }
       } catch (error) {
         await this.markInboxFailed(event.id, error instanceof Error ? error.message : "Unknown error");
         failed += 1;
       }
     }
 
-    return { processed, failed };
+    return { processed, ignored, failed };
   }
 
   async getPendingOutboxEvents(targetModule: ModuleCode, limit: number) {
@@ -128,7 +183,8 @@ export class IntegrationsService {
           external_event_id,
           aggregate_type,
           aggregate_external_id,
-          payload
+          payload,
+          received_at AS "receivedAt"
         FROM integration.inbox_events
         WHERE status = 'pending'::integration.event_status
         ORDER BY received_at ASC
@@ -152,39 +208,63 @@ export class IntegrationsService {
     return event;
   }
 
-  private async processEvent(event: InboxEventRow) {
+  private async processEvent(event: InboxEventRow): Promise<ProcessEventResult> {
     if (event.aggregate_type === "order" || event.event_type.startsWith("order.")) {
       await this.upsertOrderFromEvent(event);
-      return;
+      return { status: "processed" };
     }
 
-    if (event.source_module === ModuleCode.OneC && event.aggregate_type === "product") {
+    if (event.source_module === ModuleCode.OneC && this.isPriceEvent(event)) {
+      await this.upsertProductPriceFromOneC(event);
+      return { status: "processed" };
+    }
+
+    if (event.source_module === ModuleCode.OneC && this.isStockEvent(event)) {
+      await this.upsertStockBalanceFromOneC(event);
+      return { status: "processed" };
+    }
+
+    if (event.source_module === ModuleCode.OneC && this.isProductEvent(event)) {
       await this.upsertProductFromOneC(event);
-      return;
+      return { status: "processed" };
     }
 
-    await this.createOutboxEvent("one_c", "integration.event.ignored", "integration_event", event.id, {
-      reason: "No processor for event type",
-      eventType: event.event_type,
-      aggregateType: event.aggregate_type
-    });
+    return {
+      status: "ignored",
+      reason: `No processor for event type ${event.event_type} and aggregate ${event.aggregate_type}`
+    };
+  }
+
+  private isProductEvent(event: InboxEventRow) {
+    return event.aggregate_type === "product" || event.event_type.startsWith("product.");
+  }
+
+  private isPriceEvent(event: InboxEventRow) {
+    return (
+      event.aggregate_type === "product_price" ||
+      event.aggregate_type === "price" ||
+      event.event_type.startsWith("product.price") ||
+      event.event_type.startsWith("price.")
+    );
+  }
+
+  private isStockEvent(event: InboxEventRow) {
+    return (
+      event.aggregate_type === "stock_balance" ||
+      event.aggregate_type === "stock" ||
+      event.event_type.startsWith("stock.") ||
+      event.event_type.startsWith("product.stock")
+    );
   }
 
   private async upsertProductFromOneC(event: InboxEventRow) {
-    const payload = event.payload as {
-      sku?: string;
-      name?: string;
-      barcode?: string;
-      unit?: string;
-      ref?: string;
-      description?: string;
-    };
+    const payload = event.payload as OneCProductPayload;
 
     if (!payload.sku || !payload.name) {
       throw new Error("1C product event requires payload.sku and payload.name");
     }
 
-    await this.prisma.$executeRaw`
+    const [product] = await this.prisma.$queryRaw<Array<{ id: string }>>`
       INSERT INTO core.products (sku, barcode, name, description, unit, one_c_ref, metadata)
       VALUES (
         ${payload.sku},
@@ -192,7 +272,7 @@ export class IntegrationsService {
         ${payload.name},
         ${payload.description ?? null},
         ${payload.unit ?? "pcs"},
-        ${payload.ref ?? event.aggregate_external_id},
+        ${payload.oneCRef ?? payload.ref ?? event.aggregate_external_id},
         ${JSON.stringify(event.payload)}::jsonb
       )
       ON CONFLICT (sku)
@@ -201,9 +281,215 @@ export class IntegrationsService {
         name = EXCLUDED.name,
         description = EXCLUDED.description,
         unit = EXCLUDED.unit,
-        one_c_ref = EXCLUDED.one_c_ref,
+        one_c_ref = COALESCE(EXCLUDED.one_c_ref, core.products.one_c_ref),
         metadata = EXCLUDED.metadata
+      RETURNING id::text
     `;
+
+    const prices = this.extractPricePayloads(payload);
+    for (const price of prices) {
+      await this.upsertProductPricePayload(
+        {
+          ...price,
+          sku: price.sku ?? payload.sku,
+          oneCRef: price.oneCRef ?? price.ref ?? payload.oneCRef ?? payload.ref ?? event.aggregate_external_id ?? undefined
+        },
+        event
+      );
+    }
+
+    const stocks = this.extractStockPayloads(payload);
+    for (const stock of stocks) {
+      await this.upsertStockBalancePayload(
+        {
+          ...stock,
+          sku: stock.sku ?? payload.sku,
+          oneCRef: stock.oneCRef ?? stock.ref ?? payload.oneCRef ?? payload.ref ?? event.aggregate_external_id ?? undefined
+        },
+        event
+      );
+    }
+
+    return product.id;
+  }
+
+  private async upsertProductPriceFromOneC(event: InboxEventRow) {
+    const payload = event.payload as OneCPricePayload;
+    await this.upsertProductPricePayload(
+      {
+        ...payload,
+        oneCRef: payload.oneCRef ?? payload.ref ?? payload.productRef ?? event.aggregate_external_id ?? undefined
+      },
+      event
+    );
+  }
+
+  private async upsertStockBalanceFromOneC(event: InboxEventRow) {
+    const payload = event.payload as OneCStockPayload;
+    await this.upsertStockBalancePayload(
+      {
+        ...payload,
+        oneCRef: payload.oneCRef ?? payload.ref ?? payload.productRef ?? event.aggregate_external_id ?? undefined
+      },
+      event
+    );
+  }
+
+  private extractPricePayloads(payload: OneCProductPayload) {
+    const prices = Array.isArray(payload.prices) ? [...payload.prices] : [];
+    if (typeof payload.price === "string" || typeof payload.price === "number") {
+      prices.push({ amount: payload.price });
+    } else if (payload.price && typeof payload.price === "object") {
+      prices.push(payload.price);
+    }
+
+    return prices;
+  }
+
+  private extractStockPayloads(payload: OneCProductPayload) {
+    const stocks = Array.isArray(payload.stockBalances) ? [...payload.stockBalances] : [];
+    if (Array.isArray(payload.stocks)) {
+      stocks.push(...payload.stocks);
+    }
+    if (payload.stock) {
+      stocks.push(payload.stock);
+    }
+
+    return stocks;
+  }
+
+  private async upsertProductPricePayload(payload: OneCPricePayload, event: InboxEventRow) {
+    const product = await this.findProductForOneCPayload(payload);
+    const amount = this.toDecimalText(payload.amount ?? payload.price, "price amount");
+    const priceType = payload.priceType ?? payload.type ?? "base";
+    const currency = this.normalizeCurrency(payload.currency);
+    const validFrom = this.parseDate(payload.validFrom) ?? event.receivedAt;
+    const validTo = payload.validTo === null ? null : this.parseDate(payload.validTo);
+
+    await this.prisma.$executeRaw`
+      INSERT INTO core.product_prices (
+        product_id,
+        price_type,
+        currency,
+        amount,
+        valid_from,
+        valid_to,
+        source_module
+      )
+      VALUES (
+        ${product.id}::uuid,
+        ${priceType},
+        ${currency},
+        ${amount}::numeric,
+        ${validFrom.toISOString()}::timestamptz,
+        ${validTo ? validTo.toISOString() : null}::timestamptz,
+        'one_c'::core.module_code
+      )
+      ON CONFLICT (product_id, price_type, currency, valid_from)
+      DO UPDATE SET
+        amount = EXCLUDED.amount,
+        valid_to = EXCLUDED.valid_to,
+        source_module = EXCLUDED.source_module
+    `;
+  }
+
+  private async upsertStockBalancePayload(payload: OneCStockPayload, event: InboxEventRow) {
+    const product = await this.findProductForOneCPayload(payload);
+    const quantity = this.toDecimalText(payload.quantity ?? 0, "stock quantity");
+    const reservedQuantity = this.toDecimalText(payload.reservedQuantity ?? payload.reserved ?? 0, "reserved quantity");
+    const warehouseCode = payload.warehouseCode ?? payload.warehouse ?? "main";
+    const warehouseName = payload.warehouseName ?? warehouseCode;
+
+    const [warehouse] = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO core.warehouses (code, name, module_owner)
+      VALUES (${warehouseCode}, ${warehouseName}, 'one_c'::core.module_code)
+      ON CONFLICT (code)
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        module_owner = EXCLUDED.module_owner,
+        is_active = true
+      RETURNING id::text
+    `;
+
+    await this.prisma.$executeRaw`
+      INSERT INTO core.stock_balances (
+        product_id,
+        warehouse_id,
+        quantity,
+        reserved_quantity,
+        updated_at
+      )
+      VALUES (
+        ${product.id}::uuid,
+        ${warehouse.id}::uuid,
+        ${quantity}::numeric,
+        ${reservedQuantity}::numeric,
+        ${event.receivedAt.toISOString()}::timestamptz
+      )
+      ON CONFLICT (product_id, warehouse_id)
+      DO UPDATE SET
+        quantity = EXCLUDED.quantity,
+        reserved_quantity = EXCLUDED.reserved_quantity,
+        updated_at = EXCLUDED.updated_at
+    `;
+  }
+
+  private async findProductForOneCPayload(payload: OneCPricePayload | OneCStockPayload) {
+    const sku = payload.sku ?? payload.productSku ?? null;
+    const oneCRef = payload.oneCRef ?? payload.ref ?? payload.productRef ?? null;
+
+    if (!sku && !oneCRef) {
+      throw new Error("1C price/stock event requires sku or oneCRef");
+    }
+
+    const [product] = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT id::text
+      FROM core.products
+      WHERE (${sku}::text IS NOT NULL AND sku = ${sku})
+         OR (${oneCRef}::text IS NOT NULL AND one_c_ref = ${oneCRef})
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+
+    if (!product) {
+      throw new Error(`Product not found for 1C reference ${sku ?? oneCRef}`);
+    }
+
+    return product;
+  }
+
+  private normalizeCurrency(value?: string) {
+    const currency = (value ?? "UAH").trim().toUpperCase().slice(0, 3);
+    return currency || "UAH";
+  }
+
+  private parseDate(value?: string | null) {
+    if (!value) {
+      return null;
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error(`Invalid date value ${value}`);
+    }
+
+    return date;
+  }
+
+  private toDecimalText(value: string | number | undefined, fieldName: string) {
+    if (value === undefined || value === null || value === "") {
+      throw new Error(`1C event requires ${fieldName}`);
+    }
+
+    const text = String(value).trim().replace(",", ".");
+    if (!/^-?\d+(\.\d+)?$/.test(text)) {
+      throw new Error(`Invalid ${fieldName}: ${value}`);
+    }
+    if (text.startsWith("-")) {
+      throw new Error(`${fieldName} cannot be negative`);
+    }
+
+    return text;
   }
 
   private async upsertOrderFromEvent(event: InboxEventRow) {
@@ -363,6 +649,19 @@ export class IntegrationsService {
     payload: Record<string, unknown>
   ) {
     await this.prisma.$executeRaw`
+      WITH updated AS (
+        UPDATE integration.outbox_events
+        SET
+          payload = ${JSON.stringify(payload)}::jsonb,
+          error_message = null,
+          created_at = now()
+        WHERE target_module = ${targetModule}::core.module_code
+          AND event_type = ${eventType}
+          AND aggregate_type = ${aggregateType}
+          AND aggregate_id = ${aggregateId}::uuid
+          AND status = 'pending'::integration.event_status
+        RETURNING id
+      )
       INSERT INTO integration.outbox_events (
         target_module,
         event_type,
@@ -370,13 +669,13 @@ export class IntegrationsService {
         aggregate_id,
         payload
       )
-      VALUES (
+      SELECT
         ${targetModule}::core.module_code,
         ${eventType},
         ${aggregateType},
         ${aggregateId}::uuid,
         ${JSON.stringify(payload)}::jsonb
-      )
+      WHERE NOT EXISTS (SELECT 1 FROM updated)
     `;
   }
 
@@ -392,6 +691,14 @@ export class IntegrationsService {
     await this.prisma.$executeRaw`
       UPDATE integration.inbox_events
       SET status = 'failed'::integration.event_status, error_message = ${errorMessage}
+      WHERE id = ${id}::uuid
+    `;
+  }
+
+  private async markInboxIgnored(id: string, reason: string) {
+    await this.prisma.$executeRaw`
+      UPDATE integration.inbox_events
+      SET status = 'ignored'::integration.event_status, processed_at = now(), error_message = ${reason}
       WHERE id = ${id}::uuid
     `;
   }

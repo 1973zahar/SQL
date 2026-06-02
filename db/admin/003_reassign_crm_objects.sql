@@ -11,6 +11,7 @@ WHERE schema_name IN (
   'core',
   'integration',
   'one_c',
+  'one_c_mirror',
   'marketplace',
   'website',
   'b2b',
@@ -19,18 +20,31 @@ WHERE schema_name IN (
 )
 \gexec
 
-SELECT format('ALTER TABLE %I.%I OWNER TO %I', schemaname, tablename, :'crm_admin_user')
-FROM pg_tables
-WHERE schemaname IN (
+SELECT format(
+  'ALTER %s %I.%I OWNER TO %I',
+  CASE c.relkind
+    WHEN 'v' THEN 'VIEW'
+    WHEN 'm' THEN 'MATERIALIZED VIEW'
+    ELSE 'TABLE'
+  END,
+  n.nspname,
+  c.relname,
+  :'crm_admin_user'
+)
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname IN (
   'core',
   'integration',
   'one_c',
+  'one_c_mirror',
   'marketplace',
   'website',
   'b2b',
   'retail',
   'audit'
 )
+  AND c.relkind IN ('r', 'p', 'v', 'm')
 \gexec
 
 SELECT format('ALTER SEQUENCE %I.%I OWNER TO %I', sequence_schema, sequence_name, :'crm_admin_user')
@@ -39,6 +53,7 @@ WHERE sequence_schema IN (
   'core',
   'integration',
   'one_c',
+  'one_c_mirror',
   'marketplace',
   'website',
   'b2b',
@@ -61,6 +76,7 @@ WHERE n.nspname IN (
   'core',
   'integration',
   'one_c',
+  'one_c_mirror',
   'marketplace',
   'website',
   'b2b',

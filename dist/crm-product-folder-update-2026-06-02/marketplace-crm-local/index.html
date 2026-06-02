@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Marketplace CRM</title>
+    <link rel="stylesheet" href="styles.css?v=20260602-product-group-1">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Головна навігація">
+        <div class="brand">
+          <span class="brand-mark">MP</span>
+          <div class="brand-text">
+            <strong>Marketplace CRM</strong>
+            <small>канали продажу</small>
+          </div>
+          <button class="sidebar-toggle" id="sidebar-toggle" type="button" title="Згорнути меню" aria-label="Згорнути меню" aria-expanded="true">☰</button>
+        </div>
+
+        <nav class="nav" id="nav"></nav>
+        <div class="app-version" id="app-version" title="CRM version">
+          <span>Версія</span>
+          <strong>v2026.06.02.7</strong>
+          <small>20260602-product-group-1</small>
+          <small>вівторок, 2026-06-02</small>
+          <small>час 16:05</small>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">CRM тільки для маркетплейсів: товари, ціни, залишки, замовлення</p>
+            <h1 id="page-title">Панель</h1>
+          </div>
+          <div class="toolbar">
+            <label class="field compact">
+              <span>Роль</span>
+              <select id="role-select" disabled></select>
+            </label>
+            <label class="field compact">
+              <span>Працівник</span>
+              <select id="manager-select"></select>
+            </label>
+            <button class="icon-button" id="export-json" title="Експорт JSON" aria-label="Експорт JSON">⇩</button>
+            <button class="icon-button danger" id="reset-demo" title="Скинути demo-дані" aria-label="Скинути demo-дані">↻</button>
+          </div>
+        </header>
+
+        <main id="app" class="content" tabindex="-1"></main>
+      </div>
+    </div>
+
+    <template id="modal-template">
+      <div class="modal-backdrop" role="dialog" aria-modal="true">
+        <div class="modal">
+          <div class="modal-head">
+            <h2></h2>
+            <button class="icon-button" data-close-modal title="Закрити" aria-label="Закрити">×</button>
+          </div>
+          <div class="modal-body"></div>
+        </div>
+      </div>
+    </template>
+
+    <script src="app.js?v=20260602-product-group-1"></script>
+  </body>
+</html>

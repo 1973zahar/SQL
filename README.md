@@ -34,6 +34,7 @@ PostgreSQL використовується як центральний інте
 - `.env.crm-sql.example` - приклад підключення API до окремої робочої SQL-бази на `crm-sql`.
 - `db/init` - SQL, який виконується при першому старті контейнера.
 - `db/migrations/001_core_schema.sql` - базова схема CRM та інтеграційного обміну.
+- `db/migrations/002_one_c_mirror.sql` - сире read-only дзеркало CSV-довідників, залишків і взаєморозрахунків 1C у `one_c_mirror`.
 - `db/manual/002_module_roles.sql` - ручне створення окремих користувачів для модулів.
 - `db/admin` - адміністративні SQL-скрипти для підготовки PostgreSQL.
 - `scripts/ubuntu` - скрипти для Ubuntu VM `crm-sql`.
@@ -43,6 +44,10 @@ PostgreSQL використовується як центральний інте
 - `docs/api-runbook.md` - запуск NestJS API проти робочої бази `crm_hub`.
 - `docs/architecture.md` - логіка модулів та обміну даними.
 - `docs/integration-exchange.md` - API та фоновий worker автоматизованого обміну.
+- `docs/integration-smoke-tests.md` - швидка перевірка імпорту товару, ціни й залишку з 1C.
+- `docs/one-c-catalog-export.md` - Windows-експорт read-only довідників 1C у CSV.
+- `docs/one-c-mirror-import.md` - імпорт read-only CSV-довідників 1C у схему `one_c_mirror`.
+- `docs/one-c-operational-export-import.md` - експорт та імпорт залишків товарів, резервів і взаєморозрахунків 1C.
 - `docs/server-environment-check.md` - перевірка Windows Server і план ізоляції CRM SQL від 1C.
 
 ## Швидкий старт через Docker
@@ -137,13 +142,16 @@ npm run prisma:migrate
 - Сайт, marketplace, B2B і retail передають замовлення та клієнтські події в `integration.inbox_events`.
 - Дані, які треба передати назовні, потрапляють у `integration.outbox_events`.
 - Таблиця `one_c.exchange_log` фіксує окремий журнал обміну з 1C.
+- Схема `one_c_mirror` зберігає сирі read-only CSV-експорти довідників, залишків і взаєморозрахунків 1C для подальшої нормалізації в CRM.
 - NestJS API має endpoint-и `/integrations/*` і фоновий worker, який автоматично обробляє pending-події.
+- Імпорт із 1C уже підтримує номенклатуру, базові ціни та складські залишки через inbox-події.
 
 ## Наступний технічний етап
 
 Після розгортання бази й API потрібно додати сервіси синхронізації:
 
-- імпорт номенклатури, цін і залишків із 1C;
+- нормалізацію довідників з `one_c_mirror` у робочі CRM-таблиці;
+- нормалізацію залишків товарів і взаєморозрахунків з `one_c_mirror.latest_operational_rows`;
 - експорт замовлень у 1C;
 - імпорт статусів оплат, доставок і документів;
 - API для сайту, marketplace, B2B і retail.
