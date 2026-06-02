@@ -8220,3 +8220,23 @@ Results:
 - `git diff --cached --stat`: exit code `0`; `73 files changed, 46144 insertions(+), 49 deletions(-)`.
 
 Status: successful. Next action: stage this appended verification entry and create commit `Sync CRM SQL integration logs and 1C mirror tooling`.
+
+## 2026-06-02 - GitHub sync: main commit created
+
+Action: created the main Git commit for SQL project files, docs, logs, 1C export/import rules, viewer updates, API mirror module, and delivery packages.
+
+Commands:
+
+```powershell
+git add -A
+git commit -m "Sync CRM SQL integration logs and 1C mirror tooling"
+```
+
+Results:
+
+- `git add -A`: exit code `0`; Git repeated the LF-to-CRLF warning for `docs/crm-sql-work-log-2026-06-01.md`.
+- `git commit`: exit code `0`.
+- Commit created: `cb338c9`.
+- Summary: `73 files changed, 46166 insertions(+), 49 deletions(-)`.
+
+Status: successful. Next action: commit this log entry separately so GitHub receives the record of the main sync commit, then push `main` to `origin`.
