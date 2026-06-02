@@ -9563,3 +9563,31 @@ Results:
 - Elevated `git push origin main`: exit code `0`; pushed `main` from `2eb1030` to `d806046`.
 
 Status: successful. GitHub now contains the viewer startup fix. Next action: commit and push this final push-result log entry, then instruct Ubuntu to pull and restart the viewer.
+## 2026-06-02 - Viewer still does not bind port after async startup pull
+
+Action: user provided screenshot after running:
+
+```bash
+cd /home/crmadmin/SQL
+git pull --ff-only origin main
+sudo systemctl restart crm-1c-viewer.service
+curl http://127.0.0.1:8091/health
+```
+
+Observed terminal output:
+
+```text
+Updating 2eb1030..cbbebdd
+Fast-forward
+...
+6 files changed, 561 insertions(+), 32 deletions(-)
+curl: (7) Failed to connect to 127.0.0.1 port 8091 after 0 ms: Could not connect to server
+```
+
+Diagnosis:
+
+- Pull to async viewer build completed.
+- `curl /health` still cannot connect immediately after restart.
+- Next required evidence is service status/journal and process/port state after the new code. The likely causes are: Python startup error after restart, systemd running an unexpected file/version, service still not reaching socket bind, or a port/listen failure.
+
+Status: pending server-side evidence. Next action: ask user to run a compact Ubuntu diagnostic block that prints Git head, Python version, viewer build markers, systemd status, journal, listening port, and health response.
