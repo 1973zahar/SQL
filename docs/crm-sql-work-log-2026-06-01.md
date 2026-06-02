@@ -9591,3 +9591,209 @@ Diagnosis:
 - Next required evidence is service status/journal and process/port state after the new code. The likely causes are: Python startup error after restart, systemd running an unexpected file/version, service still not reaching socket bind, or a port/listen failure.
 
 Status: pending server-side evidence. Next action: ask user to run a compact Ubuntu diagnostic block that prints Git head, Python version, viewer build markers, systemd status, journal, listening port, and health response.
+
+## 2026-06-02 22:56:26 +03:00
+- Command:
+```powershell
+$mem = Join-Path $env:CODEX_HOME 'automations/sql-github-auto-sync/memory.md'; if (Test-Path $mem) { Get-Content -Raw $mem }
+Get-ChildItem -Force
+Get-Content -Raw 'C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md'
+Get-Content -Tail 120 'docs\crm-sql-work-log-2026-06-01.md'
+```
+- Result: The first memory-read attempt failed because `$env:CODEX_HOME` is unset in this shell. Resolved the automation memory path manually at `C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md`, loaded the prior run summary, and reviewed the current work-log tail. The prior run ended with an intermittent `.git\objects` write-permission failure that left the work log staged and unstaged at different revisions.
+- Exit code: mixed; initial memory-read command exit code 1, directory listing and manual file reads exit code 0
+- Error text: `Join-Path`/`Test-Path` parameter binding failed because `$env:CODEX_HOME` was null
+- Status: ok
+- Next action: Re-inspect git state from the current worktree and index before attempting any new staging operation.
+
+## 2026-06-02 22:56:26 +03:00
+- Command:
+```powershell
+git status --short --branch
+git remote -v
+git diff --cached --stat
+git status --ignored --short
+$files = git ls-files; $files | ForEach-Object { $item = Get-Item $_ -ErrorAction SilentlyContinue; if ($item) { [PSCustomObject]@{ FullName = $item.FullName; Length = $item.Length } } } | Sort-Object Length -Descending | Select-Object -First 20 FullName,Length
+rg -n -i --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/*.zip' --glob '!**/*.docx' --glob '!**/*.png' --glob '!**/*.jpg' --glob '!**/*.jpeg' --glob '!**/*.pdf' "(password|passwd|secret|api[_-]?key|token|authorization:|bearer\s+[A-Za-z0-9._-]+|client[_-]?secret|private[_-]?key|BEGIN [A-Z ]+PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})" .
+git diff --stat
+git diff -- docs/crm-sql-work-log-2026-06-01.md
+git diff --check
+git hash-object docs/crm-sql-work-log-2026-06-01.md
+Get-ChildItem .git -Filter *.lock -Force
+git ls-files -s docs/crm-sql-work-log-2026-06-01.md
+git status --porcelain=v2
+```
+- Result: `main` still points at `origin/main` on `https://github.com/1973zahar/SQL.git`. The only path involved is `docs/crm-sql-work-log-2026-06-01.md`, but it is in `MM` state: the index still contains blob `a98ffd5c891483cd09361e12c198033476634491` while the working tree has advanced to blob `13c68604a13e8c38e0c645b29c14fe785ef36d17`. The staged diff currently spans 72 inserted lines, the unstaged delta adds 55 more lines, there are no `.lock` files, large tracked files are existing artifacts, and the secret-pattern scan again surfaced documented placeholders, demo values, and historical log references rather than a newly introduced live credential.
+- Exit code: 0
+- Error text: warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it
+- Status: ok
+- Next action: Re-test `git add` for the updated work-log blob and stop if `.git\objects` still rejects the write.
+
+## 2026-06-02 22:57:25 +03:00
+- Command:
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git hash-object docs/crm-sql-work-log-2026-06-01.md
+git ls-files -s docs/crm-sql-work-log-2026-06-01.md
+git status --porcelain=v2
+git diff --cached --stat
+git diff --cached --check
+```
+- Result: The re-test succeeded sequentially. `git add` updated the index to blob `c3fe8820dd96a70e9118fe13ecd2c8fb42f92e78`, matching the current work-tree hash. Repository status moved from `MM` to `M.` for the work log, the cached diff now contains 164 inserted lines, and `git diff --cached --check` passed with no content errors.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Re-stage the final work-log content after this entry, confirm cached checks one more time, then create a concise commit and push `main` to `origin`.
+
+## 2026-06-02 22:57:58 +03:00
+- Command:
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git diff --cached --check
+git status --short --branch
+git commit -m "docs: update CRM SQL work log"
+git push origin main
+```
+- Result: Re-staging failed again immediately after appending the latest required work-log lines. Because the index could not accept the new work-log blob, repository state reverted to `MM` for the log file. The subsequent commit failed before opening a valid commit message file, and `git push` also failed because this shell does not currently have usable HTTPS credentials for GitHub.
+- Exit code: mixed; `git add` exit code 128, `git diff --cached --check` exit code 0 for the older staged blob, `git status` exit code 0, `git commit` exit code 128, `git push` exit code 128
+- Error text: warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it; error: insufficient permission for adding an object to repository database .git/objects; error: docs/crm-sql-work-log-2026-06-01.md: failed to insert into database; error: unable to index file 'docs/crm-sql-work-log-2026-06-01.md'; fatal: updating files failed; fatal: could not open '.git/COMMIT_EDITMSG': Permission denied; fatal: unable to access 'https://github.com/1973zahar/SQL.git/': schannel: AcquireCredentialsHandle failed: SEC_E_NO_CREDENTIALS (0x8009030e) - В пакете безопасности отсутствуют учетные данные
+- Status: failed
+- Next action: Stop without committing or pushing. A future run needs both blockers cleared: stable write access for new objects under `.git\objects` and valid GitHub HTTPS credentials in this shell.
+
+## 2026-06-02 21:55:33 +03:00
+- Command:
+```powershell
+git status --short --branch
+git remote -v
+git diff --cached --stat
+git status --ignored --short
+$files = git ls-files; $files | ForEach-Object { $item = Get-Item $_ -ErrorAction SilentlyContinue; if ($item) { [PSCustomObject]@{ FullName = $item.FullName; Length = $item.Length } } } | Sort-Object Length -Descending | Select-Object -First 20 FullName,Length
+rg -n -i --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/*.zip' --glob '!**/*.docx' --glob '!**/*.png' --glob '!**/*.jpg' --glob '!**/*.jpeg' --glob '!**/*.pdf' "(password|passwd|secret|api[_-]?key|token|authorization:|bearer\s+[A-Za-z0-9._-]+|client[_-]?secret|private[_-]?key|BEGIN [A-Z ]+PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})" .
+git diff --stat
+git diff -- docs/crm-sql-work-log-2026-06-01.md
+git diff --check
+git hash-object docs/crm-sql-work-log-2026-06-01.md
+Get-ChildItem .git -Filter *.lock -Force
+icacls .git\objects\c5
+```
+- Result: `main` still tracks `origin/main` at `https://github.com/1973zahar/SQL.git`, with only the work log modified. No staged content or ignored-cache noise was present before staging. The large tracked files are existing artifacts. The secret scan returned documented placeholders, demo values, and prior logs rather than a new live credential. The unstaged diff remained limited to the work log, `git diff --check` only emitted the existing LF-to-CRLF warning, and the current work-log blob initially hashed under `.git\objects\c5` with no `.lock` files present.
+- Exit code: 0
+- Error text: warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it
+- Status: ok
+- Next action: Re-test staging against the current blob and inspect the index directly before committing.
+
+## 2026-06-02 21:55:33 +03:00
+- Command:
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+Set-Content .git\objects\a9\codex-write-test.tmp 'test'
+git status --short --branch
+git diff --cached --stat
+git diff --cached -- docs/crm-sql-work-log-2026-06-01.md
+git ls-files -s docs/crm-sql-work-log-2026-06-01.md
+git status --porcelain=v2
+```
+- Result: The second `git add` succeeded with only the line-ending warning. A direct write probe under `.git\objects\a9` also succeeded, matching the updated work-log blob hash. The index now contains blob `a98ffd5c891483cd09361e12c198033476634491` for `docs/crm-sql-work-log-2026-06-01.md`, and porcelain v2 reports `M.` which confirms the change is staged with no remaining unstaged delta in that file.
+- Exit code: 0
+- Error text: warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it
+- Status: ok
+- Next action: Run `git diff --cached --check`, commit the staged work log, and push `main` to `origin` if the staged patch remains clean.
+
+## 2026-06-02 21:56:15 +03:00
+- Command:
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git diff --cached --check
+git diff --cached --stat
+git status --short --branch
+git hash-object docs/crm-sql-work-log-2026-06-01.md
+git status --porcelain=v2
+```
+- Result: After appending the latest run details to the work log, re-staging failed again before commit. `git add` returned an object-database permission error, so the index stayed on the previously staged blob `a98ffd5c891483cd09361e12c198033476634491` while the working tree advanced to blob `689d06e38638b7a860b7f1c7adcd6a96f7f943fc`. `git diff --cached --check` still passed for the older staged blob, but repository status became `MM` for the work log, which blocks a clean commit/push for the fully logged current state.
+- Exit code: mixed; `git add` exit code 1, follow-up inspection commands exit code 0
+- Error text: warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it; error: insufficient permission for adding an object to repository database .git/objects; error: docs/crm-sql-work-log-2026-06-01.md: failed to insert into database; error: unable to index file 'docs/crm-sql-work-log-2026-06-01.md'; fatal: updating files failed
+- Status: failed
+- Next action: Stop without committing or pushing. The next run should resolve the intermittent `.git\objects` write-permission issue or an external process that is locking object creation for new work-log blobs.
+
+## 2026-06-02 21:05:32 +03:00
+- Command:
+```powershell
+if (Test-Path $env:CODEX_HOME\automations\sql-github-auto-sync\memory.md) { Get-Content $env:CODEX_HOME\automations\sql-github-auto-sync\memory.md -Raw }
+if (Test-Path docs\crm-sql-work-log-2026-06-01.md) { Get-Content docs\crm-sql-work-log-2026-06-01.md -Raw }
+```
+- Result: No existing automation memory file was present. Loaded the current work log to preserve continuity and avoid duplicating prior sync work.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Inspect git status, remotes, staged state, ignored files, large tracked files, and likely secrets before staging anything.
+
+## 2026-06-02 21:06:14 +03:00
+- Command:
+```powershell
+git status --short --branch
+git remote -v
+git diff --cached --stat
+git status --ignored --short
+$files = git ls-files; $files | ForEach-Object { $item = Get-Item $_ -ErrorAction SilentlyContinue; if ($item) { [PSCustomObject]@{ FullName = $item.FullName; Length = $item.Length } } } | Sort-Object Length -Descending | Select-Object -First 20 FullName,Length
+rg -n -i --glob '!**/.git/**' --glob '!**/node_modules/**' --glob '!**/*.zip' --glob '!**/*.docx' --glob '!**/*.png' --glob '!**/*.jpg' --glob '!**/*.jpeg' --glob '!**/*.pdf' "(password|passwd|secret|api[_-]?key|token|authorization:|bearer\s+[A-Za-z0-9._-]+|client[_-]?secret|private[_-]?key|BEGIN [A-Z ]+PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})" .
+```
+- Result: `main` tracks `origin/main` and the only modified file is `docs/crm-sql-work-log-2026-06-01.md`. No staged changes or ignored-cache noise appeared. Largest tracked files are expected artifacts already in the repo. Secret-pattern matches were placeholders, documented examples, viewer auth references, and existing demo/mock data; no new live secret was introduced by the current pending change.
+- Exit code: 0
+- Error text:
+- Status: ok
+- Next action: Review the actual unstaged diff and whitespace hygiene before staging only the work log.
+
+## 2026-06-02 21:07:00 +03:00
+- Command:
+```powershell
+git diff --stat
+git diff -- docs/crm-sql-work-log-2026-06-01.md
+git diff --check
+```
+- Result: Unstaged diff is limited to the work log with 28 inserted lines. Reviewed the actual patch and confirmed it only adds this automation run context. `git diff --check` passed; Git only emitted the existing LF-to-CRLF working-copy warning.
+- Exit code: 0
+- Error text: warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it
+- Status: ok
+- Next action: Stage only the work log, run staged diff checks, and commit if the staged patch remains clean.
+
+## 2026-06-02 21:07:39 +03:00
+- Command:
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git diff --cached --check
+git diff --cached --stat
+git status --short --branch
+```
+- Result: Staging failed before any cached diff could be created. Repository status remained unchanged with only the work log modified in the worktree.
+- Exit code: mixed; `git add` exit code 1, follow-up cached checks exit code 0 with no staged content, `git status` exit code 0
+- Error text: warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it; error: insufficient permission for adding an object to repository database .git/objects; error: docs/crm-sql-work-log-2026-06-01.md: failed to insert into database; error: unable to index file 'docs/crm-sql-work-log-2026-06-01.md'; fatal: updating files failed
+- Status: failed
+- Next action: Confirm whether the object-database write blocker is still present for the target object path and stop if it is.
+
+## 2026-06-02 21:08:26 +03:00
+- Command:
+```powershell
+git hash-object docs/crm-sql-work-log-2026-06-01.md
+icacls .git\objects
+Get-ChildItem .git\objects -Force | Select-Object Name,Mode,LastWriteTime
+Get-ChildItem .git -Filter *.lock -Force
+icacls .git\objects\c5
+Write-Output test | git hash-object -w --stdin
+Set-Content .git\objects\c5\codex-write-test.tmp 'test'
+```
+- Result: The pending work-log blob hashes to `c513fdb37364de297c0a06a5d187559eb0fe6ee3`, so Git needs to write under `.git\objects\c5`. ACLs appear permissive on `.git\objects` and `.git\objects\c5`, and a separate stdin object write succeeded, but direct file creation inside `.git\objects\c5` failed with access denied. No `.lock` files were present. This confirms the local object-store path remains blocked for the specific write Git needs for the current log blob.
+- Exit code: mixed; hash/ACL/listing commands exit code 0, `Set-Content` exit code 1
+- Error text: Set-Content : Отказано в доступе по пути "D:\Codex\CRM\SQL\.git\objects\c5\codex-write-test.tmp".
+- Status: failed
+- Next action: Stop without forcing repository repair, commit, or push. Report the `.git\objects\c5` permission blocker clearly.
+## 2026-06-02 - Ubuntu login clarification
+
+Action: user wrote `вхід в убунту` after showing the `crmadmin@crm-sql:~/SQL` terminal.
+
+Diagnosis:
+
+- The screenshot prompt `crmadmin@crm-sql:~/SQL` means the user is already logged into the Ubuntu host as user `crmadmin`.
+- If a fresh login from Windows is needed, the expected command is `ssh crmadmin@192.168.0.166`, followed by the Ubuntu user's password or SSH key authentication.
+- From this Codex shell, non-interactive SSH was previously blocked by missing authentication: `Permission denied (publickey,password)`.
+
+Status: informational. Next action: answer with the exact login command and note that the current screenshot already shows an active Ubuntu session.
