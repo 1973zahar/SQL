@@ -9075,3 +9075,88 @@ Errors and blocked checks:
 - `CRM_BROWSER_RUNTIME_FAILED`: Browser plugin runtime through Node REPL failed twice with sandbox `spawn setup refresh`; visual browser verification was not completed. HTTP, syntax, endpoint, and static UI checks were completed instead.
 
 Status: implementation and non-browser verification succeeded. Updated local prototype is available at `http://127.0.0.1:8793/index.html`. Existing `8789` still appears to be an older local process and was not stopped.
+
+## 2026-06-02 19:53:40 +03:00
+- Command: `powershell
+ = Join-Path $env:CODEX_HOME 'automations/sql-github-auto-sync/memory.md'; if (Test-Path $mem) { Get-Content -Raw $mem }
+` 
+- Result: Failed to resolve memory path because $env:CODEX_HOME was null in this shell session.
+- Exit code: 1
+- Error text: Join-Path : Cannot bind argument to parameter Path because it is null. Test-Path failed for the same reason.
+- Status: failed
+- Next action: Use explicit automation memory path from the task instructions.
+
+
+## 2026-06-02 19:53:40 +03:00
+- Command: `powershell
+Get-Content 'docs/crm-sql-work-log-2026-06-01.md' -Tail 60
+` 
+- Result: Read the latest existing work-log entries successfully.
+- Exit code: 0
+- Error text: 
+- Status: ok
+- Next action: Inspect log structure and append new action entries in the same file.
+
+
+## 2026-06-02 19:53:40 +03:00
+- Command: `powershell
+Get-Location
+` 
+- Result: Confirmed working directory is D:\\Codex\\CRM\\SQL.
+- Exit code: 0
+- Error text: 
+- Status: ok
+- Next action: Read the top of the work log and explicit automation memory path.
+
+
+## 2026-06-02 19:53:40 +03:00
+- Command: `powershell
+Get-Content 'docs/crm-sql-work-log-2026-06-01.md' -TotalCount 80
+` 
+- Result: Read the log header and instructions successfully.
+- Exit code: 0
+- Error text: 
+- Status: ok
+- Next action: Append all subsequent automation actions using the required fields.
+
+
+## 2026-06-02 19:53:40 +03:00
+- Command: `powershell
+ = 'C:\\Users\\User\\.codex\\automations\\sql-github-auto-sync\\memory.md'; if (Test-Path $mem) { Get-Content -Raw $mem } else { '__MISSING__' }
+` 
+- Result: Confirmed the automation memory file does not exist yet.
+- Exit code: 0
+- Error text: 
+- Status: ok
+- Next action: Create the memory file at the end of the run with a concise summary.
+
+## 2026-06-02 - Ubuntu pull blocked by untracked files
+
+Action: user provided a screenshot from `crmadmin@crm-sql:~/SQL` showing `git pull --ff-only origin main` fails before the viewer helper script can be run.
+
+Observed terminal output:
+
+```text
+Updating 6d0fedf..ea95f0a
+error: The following untracked working tree files would be overwritten by merge:
+    db/migrations/002_one_c_mirror.sql
+    db/migrations/003_one_c_crm_ready_views.sql
+    scripts/ubuntu/import-1c-catalogs-http.sh
+    scripts/ubuntu/import-1c-operational-http.sh
+    scripts/ubuntu/install-1c-import-systemd-timer.sh
+    scripts/ubuntu/install-1c-viewer-systemd-service.sh
+    scripts/ubuntu/run-1c-crm-viewer.py
+    scripts/ubuntu/run-1c-import-now.sh
+Please move or remove them before you merge.
+Aborting
+bash: scripts/ubuntu/apply-1c-viewer-product-folder-update.sh: No such file or directory
+```
+
+Diagnosis:
+
+- The server is still on old commit range `6d0fedf..ea95f0a`.
+- Pull is blocked because the server has local untracked copies of files that are now tracked by GitHub.
+- The helper script does not exist on the server because the pull did not complete.
+- The safe fix is to move only those untracked blockers into a timestamped backup directory, then repeat `git pull --ff-only origin main`.
+
+Status: diagnosis successful. Next action: provide backup-and-pull commands for the Ubuntu terminal, then run the viewer update helper after pull succeeds.
