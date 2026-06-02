@@ -9884,3 +9884,14 @@ Correction rule for the rest of this project:
 - If Ubuntu access is lost, first restore/find the Ubuntu host/IP/console before continuing SQL/viewer repair.
 
 Status: correction logged. Next action: provide a Windows-only recovery path for finding/reconnecting to Ubuntu, then an Ubuntu-only block once access is restored.
+## 2026-06-02 - Stop repeating already-run network checks
+
+Action: user replied `це вже було` after another suggestion to run Windows-side network checks.
+
+Correction:
+
+- Do not repeat the same `Test-NetConnection`, `ping`, or `ssh crmadmin@192.168.0.166` checks unless the network/VM state has changed.
+- The known state is already: Windows/Codex could not reach `192.168.0.166` on ports `22` or `8091`, and SSH timed out from the user's Windows PowerShell.
+- Next meaningful action is not another network probe; it is to regain direct console access to the Ubuntu host/VM or identify where `crm-sql` is running.
+
+Status: repeated-check loop acknowledged and stopped. Next action: ask only for the missing environment fact: where the Ubuntu `crm-sql` machine is hosted/opened from, or have the user open that VM/server console directly.
