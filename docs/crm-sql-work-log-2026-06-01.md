@@ -9543,3 +9543,23 @@ Results:
 - `git diff --cached --stat`: exit code `0`; `6 files changed, 519 insertions(+), 32 deletions(-)`.
 
 Status: successful. Next action: stage this log entry, commit `Start 1C viewer before SQL payload load`, and push.
+
+## 2026-06-02 - Viewer startup: async fix pushed
+
+Action: committed and pushed the async viewer startup fix.
+
+Commands:
+
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git commit -m "Start 1C viewer before SQL payload load"
+git push origin main
+```
+
+Results:
+
+- `git add docs/crm-sql-work-log-2026-06-01.md`: exit code `0`; Git repeated LF-to-CRLF warning for work log.
+- `git commit -m "Start 1C viewer before SQL payload load"`: exit code `0`; commit created: `d806046`; `6 files changed, 541 insertions(+), 32 deletions(-)`.
+- Elevated `git push origin main`: exit code `0`; pushed `main` from `2eb1030` to `d806046`.
+
+Status: successful. GitHub now contains the viewer startup fix. Next action: commit and push this final push-result log entry, then instruct Ubuntu to pull and restart the viewer.
