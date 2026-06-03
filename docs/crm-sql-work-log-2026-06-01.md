@@ -10639,3 +10639,34 @@ Local log-support results:
 - `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 6]` before this new log entry.
 
 Status: MESER local export endpoint confirmed. Next action: verify from Ubuntu that the import host can reach `http://192.168.0.5:8090/1c_products.csv` through the VPN/network path.
+## 2026-06-03 - Ubuntu can reach MESER export HTTP endpoint
+
+Action: user executed the third step-by-step check in the Ubuntu terminal and reported that the result is ok.
+
+Ubuntu command requested:
+
+```bash
+curl -I --max-time 10 http://192.168.0.5:8090/1c_products.csv
+```
+
+Observed result from user report:
+
+```text
+є ок
+```
+
+Result: success by user confirmation. Exact HTTP headers/status text were not pasted, but the network path from Ubuntu to MESER export HTTP is confirmed operational for the next import step.
+
+Local log-support commands:
+
+```powershell
+Get-Content docs\crm-sql-work-log-2026-06-01.md -Tail 45
+git status --short --branch
+```
+
+Local log-support results:
+
+- `Get-Content`: exit code `0`; confirmed the previous MESER HTTP `200` log entry.
+- `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 7]` before this new log entry.
+
+Status: MESER export is reachable from Ubuntu. Next action: inspect the local import script/documentation before asking the user to run the Ubuntu import command.
