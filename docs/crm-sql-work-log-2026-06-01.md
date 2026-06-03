@@ -10410,3 +10410,50 @@ Current state:
 - The next meaningful action is to run the latest GitHub code on Ubuntu, restart the viewer, and verify `crm-1c-viewer.service` exposes `/health` with build `2026-06-02-product-folder-columns-3`.
 
 Status: restored access reported by user. Next action: provide Ubuntu-only commands for pull/restart/health/import verification.
+
+## 2026-06-03 - User asks how to connect to MESER from PowerShell
+
+Action: user asked `до месер як підєднатись у повершел ?`.
+
+Commands:
+
+```powershell
+rg -n "MESER|MESER-D|WinRM|Enter-PSSession|New-PSSession|\\\\|CRM-Exports|D:\\CRM|Exports|PowerShell Remoting|RDP|mstsc|ssh" docs scripts dist README.md
+git status --short --branch
+git log --oneline -3
+rg -n -C 3 "PowerShell remoting session|\[192\.168\.0\.5\]|Enter-PSSession|New-PSSession|192\.168\.0\.5|MESER `192\.168\.0\.5`" docs\crm-sql-work-log-2026-06-01.md docs\crm-sql-architecture-summary-2026-06-02.md README.md docs\one-c-automation.md
+git status --short --branch
+```
+
+Results:
+
+- First `rg`: exit code `0`; docs identify MESER as Windows host `192.168.0.5`, export folder `D:\CRM\Exports`, and previous use of PowerShell remoting session prompt `[192.168.0.5]: PS ...`.
+- `git status --short --branch`: exit code `0`; local branch was `main...origin/main [ahead 1]` because commit `4939d0b` had not yet been pushed.
+- `git log --oneline -3`: exit code `0`; latest local commit is `4939d0b Log restored Ubuntu MESER connection`.
+- Second targeted `rg`: exit code `1`; failed due PowerShell parser error from complex quoting/backtick in the regex string.
+- Final `git status --short --branch`: exit code `0`; still `main...origin/main [ahead 1]`.
+
+Status: partial success. Next action: rerun a simpler targeted search, then answer with the MESER PowerShell Remoting command and push pending logs.
+
+## 2026-06-03 - MESER PowerShell connection command confirmed
+
+Action: reran a simpler targeted search to confirm MESER PowerShell Remoting details.
+
+Commands:
+
+```powershell
+rg -n -C 3 "Enter-PSSession|New-PSSession|192\.168\.0\.5|PowerShell remoting session|\[192\.168\.0\.5\]" docs\crm-sql-work-log-2026-06-01.md docs\crm-sql-architecture-summary-2026-06-02.md README.md docs\one-c-automation.md
+git status --short --branch
+```
+
+Results:
+
+- `rg`: exit code `0`; confirmed:
+  - MESER is Windows host `192.168.0.5`.
+  - WinRM port `5985` was the intended path.
+  - Prior working prompt looked like `[192.168.0.5]: PS ...`.
+  - Correct remoting user from earlier notes is `fresh\zahar`.
+  - Correct connection command is `Enter-PSSession -ComputerName 192.168.0.5 -Credential $cred` after TrustedHosts is configured.
+- `git status --short --branch`: exit code `0`; local branch is ahead of origin by one commit and work log has unstaged changes.
+
+Status: successful. Next action: commit/push log updates, then provide the PowerShell-only command block to connect to MESER.
