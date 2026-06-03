@@ -10565,3 +10565,46 @@ Results:
 - `git status --short --branch`: exit code `0`; local repo remains ahead of origin by 4 commits because GitHub push with private infrastructure logs is blocked/pending approval.
 
 Status: MESER connection and files confirmed; HTTP export server is not yet confirmed listening. Next action: ask user to run exactly one MESER command block to start the HTTP export server and verify listener.
+## 2026-06-03 - MESER export HTTP listener confirmed
+
+Action: user executed the first step-by-step MESER command block in the remote PowerShell session.
+
+MESER commands executed by user:
+
+```powershell
+Start-Process powershell.exe -ArgumentList @(
+  '-NoProfile',
+  '-ExecutionPolicy','Bypass',
+  '-File','D:\CRM\Exports\start-crm-export-http-server.ps1',
+  '-Root','D:\CRM\Exports',
+  '-Port','8090'
+) -WindowStyle Hidden
+
+Start-Sleep -Seconds 3
+
+Get-NetTCPConnection -LocalPort 8090 -State Listen -ErrorAction SilentlyContinue
+```
+
+Observed result from screenshot:
+
+```text
+LocalAddress LocalPort RemoteAddress RemotePort State  OwningProcess
+------------ --------- ------------- ---------- -----  -------------
+::           8090      ::            0          Listen 4
+```
+
+Result: success. MESER export HTTP server is listening on port `8090`; the listener is bound to `::`, which should accept local MESER HTTP requests and may also accept IPv4/IPv6 depending on Windows listener/network policy.
+
+Local log-support commands:
+
+```powershell
+Get-Content docs\crm-sql-work-log-2026-06-01.md -Tail 45
+git status --short --branch
+```
+
+Local log-support results:
+
+- `Get-Content`: exit code `0`; confirmed the previous MESER step-by-step log entry.
+- `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 5]` before this new log entry.
+
+Status: MESER export listener confirmed. Next action: verify the HTTP endpoint from inside MESER using PowerShell-native `Invoke-WebRequest`, because `curl.exe` is not installed on MESER.
