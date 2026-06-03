@@ -10533,3 +10533,35 @@ Important GitHub status:
 - No further GitHub push will be attempted without explicit approval acknowledging that private MESER/Ubuntu infrastructure details may be published to `1973zahar/SQL`.
 
 Status: ready to continue operational verification. Next action: provide command blocks for MESER export HTTP, Ubuntu viewer/import verification, and local browser/API verification.
+## 2026-06-03 - MESER step-by-step mode: current confirmed state
+
+Action: user requested slow step-by-step work with confirmation after each step and provided a MESER PowerShell screenshot.
+
+Observed MESER prompt:
+
+```text
+[192.168.0.5]: PS C:\Users\zahar\Documents>
+```
+
+Confirmed from screenshot:
+
+- The user is connected to MESER through PowerShell Remoting.
+- `Get-Location` returned `C:\Users\zahar\Documents`.
+- `Test-Path 'D:\CRM\Exports'` returned `True`.
+- `Test-Path 'D:\CRM\Exports\start-crm-export-http-server.ps1'` returned `True`.
+- `Get-NetTCPConnection -LocalPort 8090 -State Listen -ErrorAction SilentlyContinue` showed no visible listener output.
+- `curl.exe` is not available on MESER, so MESER-side HTTP checks should use `Invoke-WebRequest`.
+
+Local commands:
+
+```powershell
+Get-Content scripts\windows\start-crm-export-http-server.ps1 -TotalCount 60
+git status --short --branch
+```
+
+Results:
+
+- `Get-Content`: exit code `0`; confirmed script parameters are `-Root`, `-Port`, and `-BindPrefix`, with default root `D:\CRM\Exports` and port `8090`.
+- `git status --short --branch`: exit code `0`; local repo remains ahead of origin by 4 commits because GitHub push with private infrastructure logs is blocked/pending approval.
+
+Status: MESER connection and files confirmed; HTTP export server is not yet confirmed listening. Next action: ask user to run exactly one MESER command block to start the HTTP export server and verify listener.
