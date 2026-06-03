@@ -10670,3 +10670,26 @@ Local log-support results:
 - `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 7]` before this new log entry.
 
 Status: MESER export is reachable from Ubuntu. Next action: inspect the local import script/documentation before asking the user to run the Ubuntu import command.
+## 2026-06-03 - Local import script inspection before Ubuntu import
+
+Action: inspected local Ubuntu import scripts before giving the next step-by-step command to avoid sending an incorrect command.
+
+Local commands:
+
+```powershell
+Get-Content scripts\ubuntu\run-1c-import-now.sh
+Get-Content scripts\ubuntu\import-1c-catalogs-http.sh -TotalCount 90
+rg -n "ONE_C|BASE_URL|8090|1c_products|import-1c" docs scripts\ubuntu
+```
+
+Results:
+
+- `Get-Content scripts\ubuntu\run-1c-import-now.sh`: exit code `0`.
+- Confirmed default `BASE_URL="${BASE_URL:-http://192.168.0.5:8090}"`.
+- Confirmed `run-1c-import-now.sh` runs `import-1c-catalogs-http.sh`, then `import-1c-operational-http.sh`, then refreshes `db/migrations/003_one_c_crm_ready_views.sql` when present.
+- Confirmed import count output includes `crm_product_groups` and `crm_product_folders`.
+- `Get-Content scripts\ubuntu\import-1c-catalogs-http.sh -TotalCount 90`: exit code `0`.
+- Confirmed `import-1c-catalogs-http.sh` also defaults to `http://192.168.0.5:8090` and imports `1c_products.csv`.
+- `rg`: exit code `0`; found expected references across docs and Ubuntu scripts, including `docs/one-c-mirror-import.md` noting that product folder fields are preserved in `raw_data` and surfaced by `003_one_c_crm_ready_views.sql`.
+
+Status: local scripts confirm the intended next operational path. Next action: ask the user to run a safe Ubuntu syntax/version check before running the real import.
