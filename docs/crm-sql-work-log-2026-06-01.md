@@ -10793,3 +10793,44 @@ Local log-support results:
 - `git diff`: exit code `0`; showed a pre-existing uncommitted work-log insertion about `marketplace-crm`. It was not reverted.
 
 Status: safe to proceed to source CSV header verification before the real import. Next action: ask the user to verify that `1c_products.csv` contains the new product folder fields.
+## 2026-06-03 - Product CSV header check shows old MESER export format
+
+Action: user executed the fifth step-by-step Ubuntu command to inspect the `1c_products.csv` header before running the real import.
+
+Ubuntu command executed by user:
+
+```bash
+curl -fsSL --max-time 30 http://192.168.0.5:8090/1c_products.csv | iconv -f utf-16le -t utf-8 | head -n 1
+```
+
+Observed result from screenshot:
+
+```text
+code;name;is_folder;parent;article;unit;full_name
+curl: (23) Failure writing output to destination, passed 16384 returned 4096
+```
+
+Result: negative for the new product folder rules. HTTP and UTF-16LE decoding work, but the source CSV header is still the old MESER export format and does not contain the expected fields:
+
+```text
+is_group
+product_group_ref
+product_group_code
+product_group_name
+```
+
+Note: `curl: (23)` is expected in this pipeline because `head -n 1` closes the pipe after reading the first line. It does not invalidate the header check.
+
+Local log-support commands:
+
+```powershell
+Get-Content docs\crm-sql-work-log-2026-06-01.md -Tail 70
+git status --short --branch
+```
+
+Local log-support results:
+
+- `Get-Content`: exit code `0`; confirmed the previous Ubuntu syntax-check log entry.
+- `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 10]` before this new log entry.
+
+Status: do not run Ubuntu import yet. The MESER export source must be refreshed with the updated exporter that outputs product folder fields.
