@@ -9923,3 +9923,490 @@ Diagnosis:
 - Since SSH to `192.168.0.166` was timing out, access must be restored via the actual VM/server console or by finding the current IP/reachability of `crm-sql`.
 
 Status: diagnosis logged. Next action: answer with the shortest correct entry paths: SSH only if reachable; otherwise open the actual VM/server console where `crm-sql` is hosted.
+## 2026-06-02 - SQL sync precheck started
+
+Action: read automation memory file and the tail of the SQL work log before inspecting repository state.
+
+Commands / code used:
+
+```powershell
+if (Test-Path "$env:CODEX_HOME/automations/sql-github-auto-sync/memory.md") { Get-Content "$env:CODEX_HOME/automations/sql-github-auto-sync/memory.md" }
+if (Test-Path "docs/crm-sql-work-log-2026-06-01.md") { Get-Content "docs/crm-sql-work-log-2026-06-01.md" -Tail 80 }
+```
+
+Results:
+
+- Memory file read: exit code `0`; no content returned.
+- Work log tail read: exit code `0`; previous entries were present and reviewed.
+
+Error text: none.
+
+Status: precheck context loaded. Next action: inspect git status, remotes, staged state, and ignored files.
+
+## 2026-06-02 - Initial git state
+
+Action: inspected current branch status, remotes, staged diff summary, and ignored-file summary.
+
+Commands / code used:
+
+```powershell
+git status --short --branch
+git remote -v
+git diff --cached --stat
+git status --ignored --short
+```
+
+Results:
+
+- `git status --short --branch`: exit code `0`; output `## main...origin/main`.
+- `git remote -v`: exit code `0`; fetch/push remote is `https://github.com/1973zahar/SQL.git`.
+- `git diff --cached --stat`: exit code `0`; no staged changes.
+- `git status --ignored --short`: exit code `0`; no ignored-file output.
+
+Error text: none.
+
+Status: repository appears clean before logging changes. Next action: run deeper safety checks for diffs, large files, and likely secrets.
+
+## 2026-06-02 - Safety checks: diff, large files, likely secrets
+
+Action: checked current unstaged diff summary, attempted a largest-tracked-files scan, searched the repository for likely secret patterns, and confirmed the working tree state.
+
+Commands / code used:
+
+```powershell
+git diff --stat
+git ls-files | ForEach-Object { $size=(Get-Item $_).Length; [PSCustomObject]@{Path=$_;Size=$size} } | Sort-Object Size -Descending | Select-Object -First 15 Path,@{Name='SizeMB';Expression={[math]::Round($_.Size/1MB,2)}}
+rg -n --hidden --glob '!*.md' --glob '!*.log' --glob '!*.png' --glob '!*.jpg' --glob '!*.jpeg' --glob '!*.gif' --glob '!*.pdf' "(?i)(password\s*[=:]|passwd\s*[=:]|secret\s*[=:]|api[_-]?key\s*[=:]|token\s*[=:]|authorization\s*:\s*bearer|BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]+)" .
+git status --short
+```
+
+Results:
+
+- `git diff --stat`: exit code `0`; only `docs/crm-sql-work-log-2026-06-01.md` changed, with 43 inserted lines.
+- Initial large-file scan: exit code `0`; returned top tracked files, then emitted PowerShell `Get-Item` errors for a path with quotes/non-ASCII characters because the pipeline used non-literal path handling.
+- Secret-pattern scan: exit code `0`; matches were placeholder/example passwords in `.env` examples, SQL parameter placeholders, shell-script env vars, and demo/test credentials inside tracked `dist/.../app.js`. No new secret material was identified in the current diff.
+- `git status --short`: exit code `0`; output ` M docs/crm-sql-work-log-2026-06-01.md`.
+
+Error text:
+
+- Large-file scan emitted `Get-Item : Путь содержит недопустимые знаки.` and `PathNotFound` for a quoted/non-ASCII path.
+
+Status: no unsafe repo changes found so far; one scan needs a safer retry. Next action: rerun the large-file check with `-LiteralPath` and null-delimited git output, then inspect the current diff for secret-like additions.
+
+## 2026-06-02 - Corrected large-file and diff-secret verification
+
+Action: reran the large-file scan with literal-path handling and checked the current diff names plus secret-like tokens inside the diff.
+
+Commands / code used:
+
+```powershell
+$files = git ls-files -z; $items = foreach ($entry in ($files -split "`0")) { if ($entry) { $item = Get-Item -LiteralPath $entry -ErrorAction Stop; [PSCustomObject]@{ Path = $entry; Size = $item.Length } } }; $items | Sort-Object Size -Descending | Select-Object -First 15 Path,@{Name='SizeMB';Expression={[math]::Round($_.Size / 1MB, 2)}}
+git diff --unified=0 -- docs/crm-sql-work-log-2026-06-01.md | rg -n "(?i)(password|secret|token|api[_-]?key|authorization|PRIVATE KEY|AKIA|ghp_|github_pat_)"
+git diff --name-only
+```
+
+Results:
+
+- Corrected large-file scan: exit code `0`; largest tracked file is `docs/Виправити PostgreSQL для CRM.docx` at `2.32 MB`; no oversized files that would block a normal push were identified.
+- Diff secret scan: exit code `0`; matches were only the log text describing prior secret-pattern scans and not actual credentials.
+- `git diff --name-only`: exit code `0`; only `docs/crm-sql-work-log-2026-06-01.md` is modified.
+
+Error text:
+
+- Git emitted a warning that `LF` in `docs/crm-sql-work-log-2026-06-01.md` will be replaced by `CRLF` next time Git touches the file.
+
+Status: repository is safe to stage with only automation-log changes. Next action: create/update automation memory, stage the automation files, and run `git diff --cached --check`.
+
+## 2026-06-02 - Automation memory path resolution
+
+Action: checked whether `CODEX_HOME` is available in the shell before writing automation memory.
+
+Commands / code used:
+
+```powershell
+Write-Output $env:CODEX_HOME
+```
+
+Results:
+
+- Exit code `0`; no value was returned, so `CODEX_HOME` is unset in this shell session.
+
+Error text: none.
+
+Status: shell env var missing, but the automation supplied an explicit memory path. Next action: write memory to `C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md`, then stage and validate the repo changes.
+
+## 2026-06-02 - Memory write and initial staging attempt
+
+Action: wrote automation memory outside the repository, then attempted to stage the work log and inspect staged state.
+
+Commands / code used:
+
+```text
+apply_patch -> add C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md
+git add -- "docs/crm-sql-work-log-2026-06-01.md"
+git status --short
+git diff --cached --stat
+git diff --cached --check
+```
+
+Results:
+
+- Memory file write: success; created `C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md`.
+- `git add`: exit code `0`; Git warned that `LF` will be replaced by `CRLF` next time it touches the work-log file.
+- Parallel post-add checks were inconclusive because they were launched simultaneously:
+  - `git status --short`: exit code `0`; still showed ` M docs/crm-sql-work-log-2026-06-01.md`.
+  - `git diff --cached --stat`: exit code `0`; no output captured.
+  - `git diff --cached --check`: exit code `0`; no output captured.
+
+Error text:
+
+- Git warning: `LF will be replaced by CRLF` for `docs/crm-sql-work-log-2026-06-01.md`.
+
+Status: memory written, but staged-state verification must be rerun sequentially to avoid races. Next action: rerun `git add`, `git status`, and cached diff checks sequentially, then commit if clean.
+
+## 2026-06-02 - Sequential staged-state verification
+
+Action: restaged the work log and reran the staged-state checks sequentially in one shell invocation to avoid race conditions.
+
+Commands / code used:
+
+```powershell
+git add -- "docs/crm-sql-work-log-2026-06-01.md"; git status --short; Write-Output "---CACHED-STAT---"; git diff --cached --stat; Write-Output "---CACHED-CHECK---"; git diff --cached --check
+```
+
+Results:
+
+- Exit code `0`.
+- `git status --short` showed `M  docs/crm-sql-work-log-2026-06-01.md`, confirming the file is staged.
+- `git diff --cached --stat` showed one staged file with `140 insertions`.
+- `git diff --cached --check` produced no whitespace/error findings.
+
+Error text:
+
+- Git warning: `LF will be replaced by CRLF` for `docs/crm-sql-work-log-2026-06-01.md`.
+
+Status: staged content is valid for commit. Next action: create a concise commit and push `main` to `origin`.
+
+## 2026-06-02 - Commit blocked by `.git` permission error
+
+Action: attempted to restage the updated work log and create a commit, then ran minimal `.git` diagnostics after the commit failed.
+
+Commands / code used:
+
+```powershell
+git add -- "docs/crm-sql-work-log-2026-06-01.md"; git commit -m "docs: update SQL sync work log"
+Get-Item .git\objects | Select-Object FullName,Attributes,Mode
+if (Test-Path .git\COMMIT_EDITMSG) { Get-Item .git\COMMIT_EDITMSG | Select-Object FullName,Attributes,Mode } else { Write-Output "COMMIT_EDITMSG missing" }
+git status --short --branch
+```
+
+Results:
+
+- Commit attempt: exit code `1`; commit was not created.
+- `.git\objects` diagnostic: exit code `0`; path exists as `D:\Codex\CRM\SQL\.git\objects`, attributes `Directory`, mode `d-----`.
+- `.git\COMMIT_EDITMSG` diagnostic: exit code `0`; file exists as `D:\Codex\CRM\SQL\.git\COMMIT_EDITMSG`, attributes `Archive`, mode `-a----`.
+- `git status --short --branch`: exit code `0`; output `## main...origin/main` and `MM docs/crm-sql-work-log-2026-06-01.md`, showing staged and unstaged changes remain in the work log after the failed commit flow.
+
+Error text:
+
+- `error: insufficient permission for adding an object to repository database .git/objects`
+- `error: docs/crm-sql-work-log-2026-06-01.md: failed to insert into database`
+- `error: unable to index file 'docs/crm-sql-work-log-2026-06-01.md'`
+- `fatal: updating files failed`
+- `fatal: could not open '.git/COMMIT_EDITMSG': Permission denied`
+
+Status: sync is blocked by local `.git` filesystem permissions, not by content safety, secrets, auth, or merge conflicts. Next action: stop without forcing changes; user needs to fix repository write permissions/locking inside `.git`, then rerun the automation.
+
+## 2026-06-03 - Final memory update for blocked sync
+
+Action: captured the end-of-run timestamp and updated automation memory with the blocked state and retry guidance.
+
+Commands / code used:
+
+```powershell
+Get-Date -Format "yyyy-MM-dd HH:mm:ss K"
+apply_patch -> update C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md
+```
+
+Results:
+
+- `Get-Date`: exit code `0`; returned `2026-06-03 00:00:00 +03:00`.
+- Memory update: success; recorded repo safety findings, the `.git` permission failure, and the required next step to fix `.git` write/lock state before retrying sync.
+
+Error text: none.
+
+Status: automation memory updated and sync intentionally stopped in blocked state. Next action: repair `.git` write permissions or release whatever is locking `.git`, then rerun this automation to restage, commit, and push.
+
+## 2026-06-03 - Reloaded automation memory and current repo baseline
+
+Action: reopened the automation memory from the explicit Codex path, then checked current branch state and configured `origin`.
+
+Commands / code used:
+
+```powershell
+if (Test-Path 'C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md') { Get-Content -Raw 'C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md' }
+git status --short --branch
+git remote -v
+```
+
+Results:
+
+- Memory read: exit code `0`; previous run summary confirms the last sync stopped on local `.git` write-permission errors during commit.
+- `git status --short --branch`: exit code `0`; output `## main...origin/main` and `MM docs/crm-sql-work-log-2026-06-01.md`, so the work log still has both staged and unstaged changes.
+- `git remote -v`: exit code `0`; fetch/push remote is `https://github.com/1973zahar/SQL.git`.
+
+Error text: none.
+
+Status: baseline restored; current repo state matches the earlier blocked pattern. Next action: rerun safety checks on staged/unstaged content, ignored/cache files, large files, and likely secrets before attempting any new Git write.
+
+## 2026-06-03 - Rechecked diff state, ignored files, large files, and likely secrets
+
+Action: reran staged/unstaged diff checks, looked for ignored/cache noise, listed the largest tracked files, and scanned the repository for likely secret patterns.
+
+Commands / code used:
+
+```powershell
+git diff --stat
+git diff --cached --stat
+git diff --cached --check
+git status --ignored --short
+git ls-files | ForEach-Object { Get-Item -LiteralPath $_ -ErrorAction SilentlyContinue } | Sort-Object Length -Descending | Select-Object -First 10 FullName,@{Name='SizeMB';Expression={[math]::Round($_.Length/1MB,2)}}
+rg -n --hidden --glob '!.git/' --glob '!node_modules/' --glob '!*.png' --glob '!*.jpg' --glob '!*.jpeg' --glob '!*.pdf' --glob '!*.docx' --glob '!*.zip' '(?i)(password\s*[:=]|passwd\s*[:=]|secret\s*[:=]|api[_-]?key\s*[:=]|token\s*[:=]|authorization\s*[:=]|BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]+|AIza[0-9A-Za-z\-_]{35}|xox[baprs]-[A-Za-z0-9-]{10,}|sk_(live|test)_[A-Za-z0-9]{16,})'
+```
+
+Results:
+
+- `git diff --stat`: exit code `0`; unstaged delta is only `docs/crm-sql-work-log-2026-06-01.md` with `95 insertions`.
+- `git diff --cached --stat`: exit code `0`; staged delta is only `docs/crm-sql-work-log-2026-06-01.md` with `140 insertions`.
+- `git diff --cached --check`: exit code `0`; no whitespace or patch-apply issues.
+- `git status --ignored --short`: exit code `0`; only `MM docs/crm-sql-work-log-2026-06-01.md`, with no ignored/cache files surfaced by status.
+- Large-file scan: exit code `0`; largest tracked paths are existing artifacts such as `dist\crm-product-folder-update-2026-06-02\marketplace-crm-local\app.js`, `dist\{6F14BFE1-0CF4-4ED0-8FE3-DE433C7FFCCE}.png`, the work log, packaged ZIPs, and existing DOCX files.
+- Secret scan: exit code `0`; matches are limited to `.env` examples, documented placeholder passwords, existing setup scripts, and demo credentials in tracked dist assets. No new live secret material was introduced by this run.
+
+Error text:
+
+- Git warning on `git diff --stat`: `LF will be replaced by CRLF the next time Git touches it` for `docs/crm-sql-work-log-2026-06-01.md`.
+
+Status: content safety checks passed; blocker, if any, is expected to be Git repository write state rather than staged content. Next action: restage the work log, rerun cached diff validation, and test whether commit/push is still blocked by local `.git` permissions.
+
+## 2026-06-03 - Git write path failed again before commit
+
+Action: attempted to restage the updated work log and revalidate the cached diff, then checked minimal `.git` metadata after `git add` failed.
+
+Commands / code used:
+
+```powershell
+git add -- "docs/crm-sql-work-log-2026-06-01.md"
+git diff --cached --check
+Get-Item .git\objects | Select-Object FullName,Attributes,Mode,LastWriteTime
+if (Test-Path .git\COMMIT_EDITMSG) { Get-Item .git\COMMIT_EDITMSG | Select-Object FullName,Attributes,Mode,LastWriteTime } else { 'COMMIT_EDITMSG missing' }
+git status --short --branch
+```
+
+Results:
+
+- `git add -- "docs/crm-sql-work-log-2026-06-01.md"`: exit code `1`; restaging failed before commit because Git could not write into the repository object database.
+- `git diff --cached --check`: exit code `0`; previously staged content remains patch-clean.
+- `.git\objects` metadata: exit code `0`; path exists as `D:\Codex\CRM\SQL\.git\objects`, attributes `Directory`, mode `d-----`, last write `2026-06-02 23:59:24`.
+- `.git\COMMIT_EDITMSG` metadata: exit code `0`; file exists as `D:\Codex\CRM\SQL\.git\COMMIT_EDITMSG`, attributes `Archive`, mode `-a----`, last write `2026-06-02 23:40:43`.
+- `git status --short --branch`: exit code `0`; output remains `## main...origin/main` and `MM docs/crm-sql-work-log-2026-06-01.md`.
+
+Error text:
+
+- `warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it`
+- `error: insufficient permission for adding an object to repository database .git/objects`
+- `error: docs/crm-sql-work-log-2026-06-01.md: failed to insert into database`
+- `error: unable to index file 'docs/crm-sql-work-log-2026-06-01.md'`
+- `fatal: updating files failed`
+
+Status: sync is blocked by local `.git` write permissions or a lock on `.git\objects`; no commit or push was attempted after the staging failure. Next action: stop without forcing changes; repair repository write access inside `.git`, then rerun the automation.
+
+## 2026-06-03 - Finalized blocked state in automation memory
+
+Action: captured the current completion time and rewrote the automation memory file with the latest blocked-state summary for the next run.
+
+Commands / code used:
+
+```powershell
+Get-Date -Format "yyyy-MM-dd HH:mm:ss K"
+(Get-Date).ToUniversalTime().ToString('o')
+apply_patch -> rewrite C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md
+```
+
+Results:
+
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss K"`: exit code `0`; returned `2026-06-03 07:53:08 +03:00`.
+- `(Get-Date).ToUniversalTime().ToString('o')`: exit code `0`; returned `2026-06-03T04:53:08.5001986Z`.
+- Memory rewrite: success; stored the current repo safety summary, the repeated `.git\objects` write failure on `git add`, and the instruction to fix `.git` write/lock state before retrying commit/push.
+
+Error text: none.
+
+Status: automation memory now reflects the current blocked sync state. Next action: fix local repository write permissions or release the lock inside `.git`, then rerun the sync automation.
+
+## 2026-06-03 - Re-read automation memory from explicit path
+
+Action: retried the required memory read using the explicit automation memory path after the `$CODEX_HOME` environment variable lookup failed.
+
+Commands / code used:
+
+```powershell
+Get-Content -Raw 'C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md'
+```
+
+Results:
+
+- Exit code `0`; memory file was read successfully.
+- The stored summary confirms the last run was blocked before commit/push by `git add` failing to write into `.git/objects`.
+- No new repository mutations were made by this read.
+
+Error text: none.
+
+Status: prior blocked state confirmed from automation memory. Next action: inspect live repository status and remote configuration for the current run.
+
+## 2026-06-03 - Checked current time, git status, and remote
+
+Action: captured the current run timestamp and verified branch state plus `origin` URLs before any new staging attempt.
+
+Commands / code used:
+
+```powershell
+Get-Date -Format "yyyy-MM-dd HH:mm:ss K"
+git status --short --branch
+git remote -v
+```
+
+Results:
+
+- `Get-Date -Format "yyyy-MM-dd HH:mm:ss K"`: exit code `0`; returned `2026-06-03 08:52:27 +03:00`.
+- `git status --short --branch`: exit code `0`; returned `## main...origin/main` and `MM docs/crm-sql-work-log-2026-06-01.md`.
+- `git remote -v`: exit code `0`; `origin` fetch and push both point to `https://github.com/1973zahar/SQL.git`.
+
+Error text: none.
+
+Status: repo remains on `main` with only the work log modified and staged/unstaged. Next action: run safety checks on staged diff health, ignored files, large files, and likely secret patterns.
+
+## 2026-06-03 - Ran safety checks on staged diff, ignored files, large files, and likely secrets
+
+Action: validated the staged patch, checked for ignored/cache noise, scanned for oversized files, reviewed likely-secret pattern hits, and rechecked `.git\objects` metadata before any new staging attempt.
+
+Commands / code used:
+
+```powershell
+git diff --cached --check
+git status --ignored --short
+git diff --cached --stat
+Get-ChildItem -Recurse -File | Where-Object { $_.Length -ge 50MB } | Select-Object FullName,@{Name='SizeMB';Expression={[math]::Round($_.Length/1MB,2)}}
+rg -n --hidden -S --glob '!/.git' --glob '!**/*.png' --glob '!**/*.jpg' --glob '!**/*.zip' --glob '!**/*.bak' "(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z\-_]{35}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}|xox[baprs]-[A-Za-z0-9-]+|-----BEGIN (RSA|DSA|EC|OPENSSH|PGP|PRIVATE KEY)-----|password\s*[:=]|pwd\s*[:=]|secret\s*[:=]|token\s*[:=]|api[_-]?key\s*[:=]|client[_-]?secret\s*[:=])" .
+Get-Item '.git\objects' | Select-Object FullName,Attributes,Mode,LastWriteTime
+```
+
+Results:
+
+- `git diff --cached --check`: exit code `0`; no whitespace or patch-format problems detected in the staged content.
+- `git status --ignored --short`: exit code `0`; only `MM docs/crm-sql-work-log-2026-06-01.md` is reported, with no ignored/cache-file noise.
+- `git diff --cached --stat`: exit code `0`; staged diff contains only `docs/crm-sql-work-log-2026-06-01.md` with `140 insertions`.
+- Large-file scan: exit code `0`; no files at or above `50MB` were returned.
+- Secret-pattern scan: exit code `0`; matches are limited to documented password placeholders, argument names, and tracked demo credentials already present under `dist`, `docs`, `README`, and scripts.
+- `.git\objects` metadata: exit code `0`; path remains `D:\Codex\CRM\SQL\.git\objects` with mode `d-----` and last write `2026-06-03 08:51:47`.
+
+Error text: none.
+
+Status: safety checks found no new sync blockers beyond the existing Git object-database write-path concern. Next action: test whether `git add` can update the work log index in the current run.
+
+## 2026-06-03 - Rechecked automation memory path handling and repo baseline
+
+Action: retried the automation memory read for the current run, recorded the failed `$CODEX_HOME`-based lookup, then verified the live branch and remote state from the repository.
+
+Commands / code used:
+
+```powershell
+$mem = Join-Path $env:CODEX_HOME 'automations/sql-github-auto-sync/memory.md'; if (Test-Path $mem) { Get-Content -LiteralPath $mem -Raw }
+if (Test-Path 'C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md') { Get-Content -LiteralPath 'C:\Users\User\.codex\automations\sql-github-auto-sync\memory.md' -Raw } else { '' }
+git status --short --branch
+git remote -v
+```
+
+Results:
+
+- `$CODEX_HOME`-based memory lookup: exit code `1`; failed because `$env:CODEX_HOME` is null in this shell session.
+- Explicit-path memory read: exit code `0`; confirmed the prior run stopped on `.git\objects` write-permission failure during `git add`.
+- `git status --short --branch`: exit code `0`; current state is `## main...origin/main` with `M  docs/crm-sql-work-log-2026-06-01.md`, meaning the work log is staged and there is no unstaged diff yet.
+- `git remote -v`: exit code `0`; `origin` fetch and push both still target `https://github.com/1973zahar/SQL.git`.
+
+Error text:
+
+- `Join-Path : Cannot bind argument to parameter 'Path' because it is null.`
+- `Test-Path : Cannot bind argument to parameter 'Path' because it is null.`
+
+Status: prior blocked context reconfirmed and live baseline captured. Next action: rerun staged diff, ignored-file, large-file, and secret checks before attempting any Git write.
+
+## 2026-06-03 - Verified current staged diff, ignored files, large files, and likely secrets
+
+Action: inspected the current cached diff, confirmed there is no unstaged patch, checked ignored-file output, rescanned for oversized files and likely secrets, and rechecked `.git\objects` metadata.
+
+Commands / code used:
+
+```powershell
+git diff --cached --stat
+git diff --stat
+git diff --cached --check
+git status --ignored --short
+Get-ChildItem -Recurse -File | Where-Object { $_.Length -ge 50MB } | Select-Object FullName,@{Name='SizeMB';Expression={[math]::Round($_.Length/1MB,2)}}
+Get-Item '.git\objects' | Select-Object FullName,Attributes,Mode,LastWriteTime
+rg -n --hidden -S --glob '!/.git' --glob '!**/*.png' --glob '!**/*.jpg' --glob '!**/*.zip' --glob '!**/*.bak' "(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z\-_]{35}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}|xox[baprs]-[A-Za-z0-9-]+|-----BEGIN (RSA|DSA|EC|OPENSSH|PGP|PRIVATE KEY)-----|password\s*[:=]|pwd\s*[:=]|secret\s*[:=]|token\s*[:=]|api[_-]?key\s*[:=]|client[_-]?secret\s*[:=])" .
+git diff --cached --name-only
+git diff --cached -- docs/crm-sql-work-log-2026-06-01.md
+```
+
+Results:
+
+- `git diff --cached --stat`: exit code `0`; staged content is only `docs/crm-sql-work-log-2026-06-01.md` with `389 insertions`.
+- `git diff --stat`: exit code `0`; no unstaged diff was returned.
+- `git diff --cached --check`: exit code `0`; cached patch is whitespace-clean and has no patch-format issues.
+- `git status --ignored --short`: exit code `0`; output is `M  docs/crm-sql-work-log-2026-06-01.md`, with no ignored/cache-file noise.
+- Large-file scan: exit code `0`; no files at or above `50MB` were found.
+- `.git\objects` metadata: exit code `0`; path is `D:\Codex\CRM\SQL\.git\objects`, mode remains `d-----`, last write time is `2026-06-03 08:53:41`.
+- Secret-pattern scan: exit code `0`; matches remain limited to documented placeholders, setup arguments, and existing demo credentials already tracked in the repository.
+- `git diff --cached --name-only`: exit code `0`; only `docs/crm-sql-work-log-2026-06-01.md` is staged.
+- Cached diff inspection: exit code `0`; staged additions are work-log entries only.
+
+Error text: none.
+
+Status: current content is still safe to commit; the remaining risk is the repository write path inside `.git`. Next action: append these current-run log entries, then retry `git add` on the work log and continue only if Git can write to `.git\objects`.
+
+## 2026-06-03 - Restaging failed again on `.git\objects`
+
+Action: tried to stage the newly appended work-log entries and rechecked branch status immediately after the Git write failed.
+
+Commands / code used:
+
+```powershell
+git add -- "docs/crm-sql-work-log-2026-06-01.md"
+git status --short --branch
+```
+
+Results:
+
+- `git add -- "docs/crm-sql-work-log-2026-06-01.md"`: exit code `1`; Git again failed before commit because it could not add a new object to `.git\objects`.
+- `git status --short --branch`: exit code `0`; repository state is now `## main...origin/main` with `MM docs/crm-sql-work-log-2026-06-01.md`, meaning the older staged copy remains while the newly appended log entries are unstaged.
+
+Error text:
+
+- `warning: in the working copy of 'docs/crm-sql-work-log-2026-06-01.md', LF will be replaced by CRLF the next time Git touches it`
+- `error: insufficient permission for adding an object to repository database .git/objects`
+- `error: docs/crm-sql-work-log-2026-06-01.md: failed to insert into database`
+- `error: unable to index file 'docs/crm-sql-work-log-2026-06-01.md'`
+- `fatal: updating files failed`
+
+Status: sync is blocked again at the staging step, so no new `git diff --cached --check`, commit, or push was attempted after this failure. Next action: stop without forcing changes; fix repository write permissions or any lock affecting `.git\objects`, then rerun the sync automation.
+## 2026-06-03 - Ubuntu and MESER connection restored
+
+Action: user reported that Ubuntu is available again and there is now a connection to MESER.
+
+Current state:
+
+- Previous blocker was loss of Ubuntu access and Windows-side timeout to `192.168.0.166`.
+- User now indicates the Ubuntu/MESER access problem is resolved.
+- The next meaningful action is to run the latest GitHub code on Ubuntu, restart the viewer, and verify `crm-1c-viewer.service` exposes `/health` with build `2026-06-02-product-folder-columns-3`.
+
+Status: restored access reported by user. Next action: provide Ubuntu-only commands for pull/restart/health/import verification.
