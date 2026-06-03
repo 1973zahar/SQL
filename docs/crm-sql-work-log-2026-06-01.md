@@ -10516,3 +10516,20 @@ Operational correction:
 - Do not paste MESER PowerShell into Ubuntu Bash.
 
 Status: local log updated. Next action: provide a concise command map for all three windows and ask for explicit approval before any further GitHub push containing private infrastructure logs.
+## 2026-06-03 - Work resumed with three prepared terminals
+
+Action: user reported that everything is ready and work can continue.
+
+Current operating model:
+
+- Ubuntu terminal through VPN: run Ubuntu Bash commands only.
+- MESER terminal through VPN: run remote Windows PowerShell commands only.
+- Local computer terminal: run local Windows PowerShell commands only.
+
+Important GitHub status:
+
+- Local repository has pending log commits ahead of `origin/main`.
+- Previous push attempt containing private infrastructure log details was blocked by policy.
+- No further GitHub push will be attempted without explicit approval acknowledging that private MESER/Ubuntu infrastructure details may be published to `1973zahar/SQL`.
+
+Status: ready to continue operational verification. Next action: provide command blocks for MESER export HTTP, Ubuntu viewer/import verification, and local browser/API verification.
