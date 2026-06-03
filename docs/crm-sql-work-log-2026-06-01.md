@@ -10834,3 +10834,33 @@ Local log-support results:
 - `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 10]` before this new log entry.
 
 Status: do not run Ubuntu import yet. The MESER export source must be refreshed with the updated exporter that outputs product folder fields.
+## 2026-06-03 - Local Windows exporter inspection after old MESER CSV header
+
+Action: inspected local Windows/MESER exporter scripts and docs to determine the next safe step after `1c_products.csv` showed the old header.
+
+Local commands:
+
+```powershell
+Get-ChildItem scripts\windows | Select-Object Name,Length
+rg -n "product_group_ref|product_group_code|product_group_name|is_group|is_folder|full_name|export-1c-catalogs|Set base|Set all|1c_products.csv" scripts\windows docs
+git status --short --branch
+```
+
+Results:
+
+- `Get-ChildItem`: exit code `0`; confirmed Windows export helpers exist locally:
+  - `export-1c-catalogs.ps1`
+  - `export-1c-catalogs.vbs`
+  - `run-1c-export-now.ps1`
+  - `start-crm-export-http-server.ps1`
+  - `check-meser-1c-export-state.ps1`
+- `rg`: exit code `0`; confirmed local `scripts\windows\export-1c-catalogs.vbs` contains the new product CSV header at line `148`:
+
+```text
+row_no;external_ref;code;name;deletion_mark;is_group;product_group_ref;product_group_code;product_group_name
+```
+
+- `rg`: exit code `0`; confirmed docs state that `1c_products.csv` must include `is_group`, `product_group_ref`, `product_group_code`, `product_group_name`, and that the MESER-side exporter should be refreshed before import.
+- `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 11]` after committing the old-header log.
+
+Status: local code is correct, but MESER is still serving an old `1c_products.csv`. Next action: ask user to check whether `D:\CRM\Exports\export-1c-catalogs.vbs` on MESER contains the new product group markers before running any export/import.
