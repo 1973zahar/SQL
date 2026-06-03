@@ -9104,6 +9104,62 @@ Results:
 
 Status: successful. Local CRM prototype is available at `http://127.0.0.1:8789/index.html`. No 1C production restart was performed. No write-back to 1C was performed.
 
+## 2026-06-03 - Marketplace CRM: NovaPay mojibake fix and visible API connection block
+
+Action: fixed NovaPay payer-name mojibake in the prototype and made the NovaPay API connection block visible directly in `Finance -> NovaPay`, not only under settings.
+
+Files changed:
+
+- `D:\Codex\CRM\marketplace-crm\app.js`
+- `D:\Codex\CRM\marketplace-crm\index.html`
+- `D:\Codex\CRM\marketplace-crm\mock-api.ps1`
+
+Implemented:
+
+- Updated app version to:
+  - `APP_VERSION`: `2026.06.03.1`
+  - `APP_BUILD`: `20260603-novapay-api-ui-1`
+- Added visible `API pidkliuchennia NovaPay` form inside the finance NovaPay panel:
+  - enabled/disabled;
+  - test/production mode;
+  - gateway URL;
+  - merchant/public ID;
+  - account/cash desk;
+  - auto-create payments toggle;
+  - save button.
+- Added `update-novapay-settings` submit handler.
+- Added normalization for already-saved demo NovaPay rows in localStorage so old mojibake payer names are repaired on reload.
+- Changed mock gateway demo payer names to be decoded from UTF-8 base64, avoiding Windows PowerShell script-literal encoding problems.
+- Updated HTML cache-busting to `20260603-novapay-api-ui-1`.
+
+Commands and checks:
+
+```powershell
+node --check app.js
+[scriptblock]::Create((Get-Content -Raw -Path .\mock-api.ps1)) | Out-Null
+rg -n "20260603-novapay-api-ui-1|update-novapay-settings|API підключення NovaPay|ConvertFrom-Utf8Base64|privateKey|x-sign" app.js index.html mock-api.ps1
+Stop-Process -Id 6736 -Force
+Start-Process ... mock-api.ps1 -Port 8789 -BindAddress 127.0.0.1
+Invoke-WebRequest http://127.0.0.1:8789/index.html
+Invoke-WebRequest http://127.0.0.1:8789/api/novapay/payments
+```
+
+Results:
+
+- `app.js` syntax check: successful.
+- `mock-api.ps1` parse check: successful.
+- Initial restart after the mock change failed because the helper function was defined below `$Seed`.
+- Error code recorded: `CRM_MOCK_HELPER_ORDER_ERROR`.
+- Fix: moved `ConvertFrom-Utf8Base64` above `$Seed`.
+- Local server restarted successfully on `127.0.0.1:8789`, PID `25852`.
+- `index.html`: status `200`, build `20260603-novapay-api-ui-1`.
+- `GET /api/novapay/payments`: successful; `privateKeyInBrowser=False`, first payer is `Олександр Клименко`.
+- No private NovaPay key was added to browser-side code.
+- No 1C production restart was performed.
+- No write-back to 1C was performed.
+
+Status: successful. User should hard refresh `http://127.0.0.1:8789/index.html` to load `app.js?v=20260603-novapay-api-ui-1`; the NovaPay API connection block is now visible above the NovaPay import/reconciliation buttons.
+
 ## 2026-06-02 19:53:40 +03:00
 - Command: `powershell
  = Join-Path $env:CODEX_HOME 'automations/sql-github-auto-sync/memory.md'; if (Test-Path $mem) { Get-Content -Raw $mem }
@@ -10693,3 +10749,47 @@ Results:
 - `rg`: exit code `0`; found expected references across docs and Ubuntu scripts, including `docs/one-c-mirror-import.md` noting that product folder fields are preserved in `raw_data` and surfaced by `003_one_c_crm_ready_views.sql`.
 
 Status: local scripts confirm the intended next operational path. Next action: ask the user to run a safe Ubuntu syntax/version check before running the real import.
+## 2026-06-03 - Ubuntu import scripts syntax check confirmed
+
+Action: user executed the fourth step-by-step Ubuntu command to verify current code and bash syntax before running the real import.
+
+Ubuntu command executed by user:
+
+```bash
+cd ~/SQL && git log -1 --oneline && bash -n scripts/ubuntu/run-1c-import-now.sh && bash -n scripts/ubuntu/import-1c-catalogs-http.sh && bash -n scripts/ubuntu/import-1c-operational-http.sh && echo "IMPORT SCRIPTS OK"
+```
+
+Observed result from screenshot:
+
+```text
+cbbebdd (HEAD -> main, origin/main, origin/HEAD) Log async 1C viewer startup push
+IMPORT SCRIPTS OK
+```
+
+Also visible from the same Ubuntu screenshot: the previous Ubuntu HTTP check returned exact headers:
+
+```text
+HTTP/1.1 200 OK
+Content-Length: 3313284
+Content-Type: text/csv; charset=utf-16le
+Server: Microsoft-HTTPAPI/2.0
+Date: Wed, 03 Jun 2026 07:30:56 GMT
+```
+
+Result: success. Ubuntu is on remote commit `cbbebdd`, the import scripts have valid bash syntax, and MESER serves `1c_products.csv` as UTF-16LE CSV over HTTP.
+
+Local log-support commands:
+
+```powershell
+Get-Content docs\crm-sql-work-log-2026-06-01.md -Tail 65
+git status --short --branch
+git diff -- docs/crm-sql-work-log-2026-06-01.md
+```
+
+Local log-support results:
+
+- `Get-Content`: exit code `0`; confirmed the previous import-script inspection log entry.
+- `git status --short --branch`: exit code `0`; repo showed `## main...origin/main [ahead 9]` plus a modified work-log file before this new entry.
+- `git diff`: exit code `0`; showed a pre-existing uncommitted work-log insertion about `marketplace-crm`. It was not reverted.
+
+Status: safe to proceed to source CSV header verification before the real import. Next action: ask the user to verify that `1c_products.csv` contains the new product folder fields.
