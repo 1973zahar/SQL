@@ -10608,3 +10608,34 @@ Local log-support results:
 - `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 5]` before this new log entry.
 
 Status: MESER export listener confirmed. Next action: verify the HTTP endpoint from inside MESER using PowerShell-native `Invoke-WebRequest`, because `curl.exe` is not installed on MESER.
+## 2026-06-03 - MESER local HTTP export endpoint returned 200
+
+Action: user executed the second step-by-step MESER HTTP check and reported that the status is `200`.
+
+MESER command requested:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing -Method Head -Uri 'http://127.0.0.1:8090/1c_products.csv' -TimeoutSec 10 | Select-Object StatusCode,StatusDescription
+```
+
+Observed result from user report:
+
+```text
+StatusCode: 200
+```
+
+Result: success. The MESER export HTTP server is not only listening on port `8090`; it also serves `1c_products.csv` successfully from MESER-local `127.0.0.1`.
+
+Local log-support commands:
+
+```powershell
+Get-Content docs\crm-sql-work-log-2026-06-01.md -Tail 55
+git status --short --branch
+```
+
+Local log-support results:
+
+- `Get-Content`: exit code `0`; confirmed the previous listener log entry.
+- `git status --short --branch`: exit code `0`; repo was `## main...origin/main [ahead 6]` before this new log entry.
+
+Status: MESER local export endpoint confirmed. Next action: verify from Ubuntu that the import host can reach `http://192.168.0.5:8090/1c_products.csv` through the VPN/network path.
