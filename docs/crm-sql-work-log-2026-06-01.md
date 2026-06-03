@@ -9076,6 +9076,34 @@ Errors and blocked checks:
 
 Status: implementation and non-browser verification succeeded. Updated local prototype is available at `http://127.0.0.1:8793/index.html`. Existing `8789` still appears to be an older local process and was not stopped.
 
+## 2026-06-03 - Marketplace CRM: local prototype server restart after PC reboot
+
+Action: restarted the local Marketplace CRM prototype server after the computer reboot.
+
+Commands:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8789/index.html
+netstat -ano | findstr ":8789"
+Start-Process -FilePath powershell -ArgumentList @('-ExecutionPolicy','Bypass','-File','D:\Codex\CRM\marketplace-crm\mock-api.ps1','-Port','8789','-BindAddress','127.0.0.1') -WorkingDirectory 'D:\Codex\CRM\marketplace-crm' -WindowStyle Hidden
+Start-Process -FilePath 'C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe' -ArgumentList @('-ExecutionPolicy','Bypass','-File','D:\Codex\CRM\marketplace-crm\mock-api.ps1','-Port','8789','-BindAddress','127.0.0.1') -WorkingDirectory 'D:\Codex\CRM\marketplace-crm' -WindowStyle Hidden
+Invoke-WebRequest http://127.0.0.1:8789/index.html
+Invoke-WebRequest http://127.0.0.1:8789/api/novapay/payments
+```
+
+Results:
+
+- Initial check: `http://127.0.0.1:8789/index.html` was not running after reboot.
+- Initial `netstat` check: no listener on `8789`.
+- Non-elevated background start returned exit code `0`, but no listener stayed on `8789`.
+- Error code recorded: `CRM_LOCAL_SERVER_START_NO_LISTENER_AFTER_REBOOT`.
+- Safer elevated local-only start on `127.0.0.1:8789` succeeded.
+- `netstat`: `127.0.0.1:8789` is listening, PID `6736`.
+- `index.html`: status `200`, build `20260602-novapay-gateway-1`.
+- `GET /api/novapay/payments`: successful; `privateKeyInBrowser=false`.
+
+Status: successful. Local CRM prototype is available at `http://127.0.0.1:8789/index.html`. No 1C production restart was performed. No write-back to 1C was performed.
+
 ## 2026-06-02 19:53:40 +03:00
 - Command: `powershell
  = Join-Path $env:CODEX_HOME 'automations/sql-github-auto-sync/memory.md'; if (Test-Path $mem) { Get-Content -Raw $mem }
@@ -10457,3 +10485,34 @@ Results:
 - `git status --short --branch`: exit code `0`; local branch is ahead of origin by one commit and work log has unstaged changes.
 
 Status: successful. Next action: commit/push log updates, then provide the PowerShell-only command block to connect to MESER.
+
+## 2026-06-03 - Push blocked by policy and terminal roles clarified
+
+Action: attempted to push pending log commits, then user clarified they are opening three separate PowerShell windows:
+
+1. Ubuntu through VPN.
+2. MESER through VPN.
+3. This local computer.
+
+Tool/command attempted:
+
+```powershell
+git push origin main
+```
+
+Result:
+
+- Tool rejected the external GitHub push before command execution.
+- Reason: logs/docs contain private infrastructure details about MESER/Ubuntu, and the destination GitHub repository was not verified by policy as a trusted internal destination.
+- No workaround attempted.
+
+Operational correction:
+
+- Treat the three windows as separate environments:
+  - Ubuntu window: Bash commands only, prompt should look like `crmadmin@crm-sql:~/SQL$`.
+  - MESER window: remote Windows PowerShell commands only, prompt should look like `[192.168.0.5]: PS ...`.
+  - Local computer window: local Windows PowerShell commands only, prompt should look like `PS C:\...>`.
+- Do not paste Ubuntu Bash into MESER/local PowerShell.
+- Do not paste MESER PowerShell into Ubuntu Bash.
+
+Status: local log updated. Next action: provide a concise command map for all three windows and ask for explicit approval before any further GitHub push containing private infrastructure logs.
