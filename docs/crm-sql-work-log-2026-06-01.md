@@ -21456,3 +21456,31 @@ Output:
 Next step:
 Commit this new work-log entry, then push to origin/main.
 ```
+
+### Action: attempted GitHub push
+
+Window: `Вікно 3 - локальний`
+
+Command:
+
+```powershell
+git push origin main
+```
+
+Result:
+
+```text
+Push was not executed.
+Sandbox escalation was rejected by policy.
+Reason summarized: git push origin main would export local repository contents and 14 unpublished commits to external GitHub remote https://github.com/1973zahar/SQL.git. This is considered high-risk data transfer without an additional explicit approval after the risk notice.
+
+Current state before this log entry:
+- Local branch main was ahead of origin/main by 14 commits.
+- Latest local commits included:
+  6c7e26b Update CRM SQL work log
+  fa15f1d Add multi-company 1C mirror support
+- Temporary local file `.ssh_known_hosts_192_168_0_166` remained untracked and was not committed.
+
+Next step:
+Commit this push-blocker log locally. Then user can either explicitly approve the external GitHub push after this risk notice or manually run `git push origin main` in Window 3.
+```
