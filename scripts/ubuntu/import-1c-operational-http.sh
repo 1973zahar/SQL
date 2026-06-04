@@ -10,6 +10,9 @@ DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-5432}"
 BASE_URL="${BASE_URL:-http://192.168.0.5:8090}"
 USE_POSTGRES_SUDO="${USE_POSTGRES_SUDO:-0}"
+CRM_ENTERPRISE_CODE="${CRM_ENTERPRISE_CODE:-elista}"
+CRM_ENTERPRISE_NAME="${CRM_ENTERPRISE_NAME:-ЕЛІСТА}"
+CRM_ENTERPRISE_REF="${CRM_ENTERPRISE_REF:-${CRM_ENTERPRISE_CODE}}"
 
 CURRENT_USER="$(id -un 2>/dev/null || printf 'user')"
 DEFAULT_WORK_DIR="${HOME}/crm-imports/1c-operational"
@@ -95,6 +98,7 @@ prepare_work_dir
 
 echo "Ensuring one_c_mirror schema exists..."
 run_psql < "${REPO_ROOT}/db/migrations/002_one_c_mirror.sql"
+echo "Enterprise: ${CRM_ENTERPRISE_NAME} (${CRM_ENTERPRISE_CODE}, ref=${CRM_ENTERPRISE_REF})"
 
 for item in "${items[@]}"; do
   IFS="|" read -r dataset_name object_type source_file required <<<"${item}"
@@ -113,12 +117,18 @@ for item in "${items[@]}"; do
   batch_id="$(
     run_psql -Atqc "
       INSERT INTO one_c_mirror.operational_batches (
+        enterprise_code,
+        enterprise_name,
+        enterprise_ref,
         dataset_name,
         object_type,
         source_file,
         source_url
       )
       VALUES (
+        $(sql_literal "${CRM_ENTERPRISE_CODE}"),
+        $(sql_literal "${CRM_ENTERPRISE_NAME}"),
+        $(sql_literal "${CRM_ENTERPRISE_REF}"),
         $(sql_literal "${dataset_name}"),
         $(sql_literal "${object_type}"),
         $(sql_literal "${source_file}"),
@@ -153,6 +163,9 @@ CREATE TEMP TABLE import_operational_stage (
 
 INSERT INTO one_c_mirror.operational_rows (
   import_batch_id,
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   dataset_name,
   object_type,
   source_file,
@@ -177,6 +190,9 @@ INSERT INTO one_c_mirror.operational_rows (
 )
 SELECT
   '${batch_id}'::uuid,
+  $(sql_literal "${CRM_ENTERPRISE_CODE}"),
+  $(sql_literal "${CRM_ENTERPRISE_NAME}"),
+  $(sql_literal "${CRM_ENTERPRISE_REF}"),
   $(sql_literal "${dataset_name}"),
   $(sql_literal "${object_type}"),
   $(sql_literal "${source_file}"),
@@ -197,6 +213,9 @@ SELECT
   NULLIF(replace(reserved_quantity, ',', '.'), '')::numeric,
   NULLIF(replace(amount, ',', '.'), '')::numeric,
   jsonb_build_object(
+    'enterpriseCode', $(sql_literal "${CRM_ENTERPRISE_CODE}"),
+    'enterpriseName', $(sql_literal "${CRM_ENTERPRISE_NAME}"),
+    'enterpriseRef', $(sql_literal "${CRM_ENTERPRISE_REF}"),
     'rowNo', row_no,
     'periodAt', period_at,
     'entityCode', entity_code,
@@ -265,12 +284,14 @@ done
 
 run_psql -c "
   SELECT
+    enterprise_code,
+    enterprise_name,
     dataset_name,
     count(*)::int AS rows,
     COALESCE(sum(quantity), 0)::numeric(18, 3) AS quantity,
     COALESCE(sum(reserved_quantity), 0)::numeric(18, 3) AS reserved_quantity,
     COALESCE(sum(amount), 0)::numeric(18, 2) AS amount
   FROM one_c_mirror.latest_operational_rows
-  GROUP BY dataset_name
-  ORDER BY dataset_name;
+  GROUP BY enterprise_code, enterprise_name, dataset_name
+  ORDER BY enterprise_code, dataset_name;
 "

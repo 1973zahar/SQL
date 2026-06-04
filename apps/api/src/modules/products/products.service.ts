@@ -54,6 +54,6 @@ export class ProductsService {
   }
 
   private clampLimit(limit: number) {
-    return Math.max(1, Math.min(Number.isFinite(limit) ? limit : 50, 200));
+    return Math.max(1, Math.min(Number.isFinite(limit) ? limit : 50, 50000));
   }
 }

@@ -6,6 +6,10 @@ param(
 
     [string]$ConnectionString = $env:CRM_1C_CONNECTION_STRING,
 
+    [string]$Server = $(if ([string]::IsNullOrWhiteSpace($env:CRM_1C_SERVER)) { "192.168.0.5" } else { $env:CRM_1C_SERVER }),
+
+    [string]$Ref = $(if ([string]::IsNullOrWhiteSpace($env:CRM_1C_REF)) { "elista" } else { $env:CRM_1C_REF }),
+
     [string]$CscriptPath = "$env:WINDIR\System32\cscript.exe"
 )
 
@@ -22,13 +26,17 @@ if (-not (Test-Path -LiteralPath $CscriptPath)) {
     throw "cscript.exe not found: $CscriptPath"
 }
 
+if (-not $PSBoundParameters.ContainsKey("ConnectionString") -and ($PSBoundParameters.ContainsKey("Server") -or $PSBoundParameters.ContainsKey("Ref"))) {
+    $ConnectionString = ""
+}
+
 if ([string]::IsNullOrWhiteSpace($ConnectionString)) {
-    $ConnectionString = 'Srvr="192.168.0.5";Ref="elista";'
-    Write-Host "CRM_1C_CONNECTION_STRING is empty. Using no-login connection string: Srvr=`"192.168.0.5`";Ref=`"elista`";"
+    $ConnectionString = "Srvr=`"$Server`";Ref=`"$Ref`";"
+    Write-Host "CRM_1C_CONNECTION_STRING is empty. Using no-login connection string: Srvr=`"$Server`";Ref=`"$Ref`";"
 }
 
 if ($ConnectionString -match 'Usr\s*=\s*"?USER"?' -or $ConnectionString -match 'Pwd\s*=\s*"?PASSWORD"?') {
-    throw "CRM_1C_CONNECTION_STRING still contains placeholder USER/PASSWORD. Use no-login string: Srvr=`"192.168.0.5`";Ref=`"elista`";"
+    throw "CRM_1C_CONNECTION_STRING still contains placeholder USER/PASSWORD. Use no-login string such as: Srvr=`"$Server`";Ref=`"$Ref`";"
 }
 
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
@@ -44,6 +52,8 @@ Get-Content -LiteralPath $VbsPath -Encoding UTF8 |
     "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') Starting export wrapper"
     "Set: $Set"
     "OutputDir: $OutputDir"
+    "Server: $Server"
+    "Ref: $Ref"
     "VBS: $VbsPath"
     "RuntimeVBS: $runtimeVbsPath"
     "Summary: $summaryPath"
@@ -52,6 +62,8 @@ Get-Content -LiteralPath $VbsPath -Encoding UTF8 |
 Write-Host "Starting 1C catalog export"
 Write-Host "Set: $Set"
 Write-Host "OutputDir: $OutputDir"
+Write-Host "Server: $Server"
+Write-Host "Ref: $Ref"
 Write-Host "Runtime VBS: $runtimeVbsPath"
 Write-Host "Summary will be: $summaryPath"
 

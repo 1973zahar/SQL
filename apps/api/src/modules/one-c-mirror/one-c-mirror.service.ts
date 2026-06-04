@@ -279,6 +279,6 @@ export class OneCMirrorService {
   }
 
   private clampLimit(limit: number) {
-    return Math.max(1, Math.min(Number.isFinite(limit) ? limit : 1000, 5000));
+    return Math.max(1, Math.min(Number.isFinite(limit) ? limit : 1000, 50000));
   }
 }

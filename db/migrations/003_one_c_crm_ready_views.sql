@@ -2,6 +2,9 @@ BEGIN;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_product_prices AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   btrim(entity_code) AS product_code,
   NULLIF(btrim(entity_name), '') AS product_name,
   NULLIF(btrim(related_code), '') AS price_type_code,
@@ -20,6 +23,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_product_price_summary AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   product_code,
   max(product_name) AS product_name,
   count(*)::int AS price_count,
@@ -38,11 +44,14 @@ SELECT
     '; '
   ) AS price_summary
 FROM one_c_mirror.crm_product_prices
-GROUP BY product_code;
+GROUP BY enterprise_code, enterprise_name, enterprise_ref, product_code;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_products AS
-WITH product_sources AS (
+WITH RECURSIVE product_catalog_rows AS (
   SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     btrim(code) AS product_code,
     NULLIF(btrim(name), '') AS product_name,
     deletion_mark AS is_deleted,
@@ -94,9 +103,96 @@ WITH product_sources AS (
     OR object_type IN ('product', 'products')
     OR catalog_name = 'Номенклатура'
 
+),
+product_group_hierarchy AS (
+  SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
+    product_code AS group_code,
+    product_name AS group_name,
+    product_group_code AS parent_group_code,
+    product_group_name AS parent_group_name,
+    product_code AS group_code_path,
+    product_name AS group_name_path,
+    1::int AS group_level
+  FROM product_catalog_rows child
+  WHERE
+    child.is_group
+    AND (
+      child.product_group_code IS NULL
+      OR child.product_group_code = ''
+      OR NOT EXISTS (
+        SELECT 1
+        FROM product_catalog_rows parent
+        WHERE
+          parent.is_group
+          AND parent.enterprise_code = child.enterprise_code
+          AND parent.product_code = child.product_group_code
+      )
+    )
+
   UNION ALL
 
   SELECT
+    child.enterprise_code,
+    child.enterprise_name,
+    child.enterprise_ref,
+    child.product_code AS group_code,
+    child.product_name AS group_name,
+    child.product_group_code AS parent_group_code,
+    child.product_group_name AS parent_group_name,
+    concat_ws(' / ', parent.group_code_path, child.product_code) AS group_code_path,
+    concat_ws(' / ', parent.group_name_path, child.product_name) AS group_name_path,
+    (parent.group_level + 1)::int AS group_level
+  FROM product_catalog_rows child
+  JOIN product_group_hierarchy parent
+    ON parent.enterprise_code = child.enterprise_code
+   AND parent.group_code = child.product_group_code
+  WHERE
+    child.is_group
+    AND parent.group_level < 30
+),
+product_sources AS (
+  SELECT
+    product_catalog_rows.enterprise_code,
+    product_catalog_rows.enterprise_name,
+    product_catalog_rows.enterprise_ref,
+    product_catalog_rows.product_code,
+    product_catalog_rows.product_name,
+    product_catalog_rows.is_deleted,
+    product_catalog_rows.source_file,
+    product_catalog_rows.imported_at,
+    product_catalog_rows.source_rank,
+    product_catalog_rows.product_group_code,
+    product_catalog_rows.product_group_name,
+    product_catalog_rows.product_group_ref,
+    product_catalog_rows.is_group,
+    COALESCE(parent_group.group_code_path, product_catalog_rows.product_group_code) AS product_group_code_path,
+    COALESCE(parent_group.group_name_path, product_catalog_rows.product_group_name) AS product_group_path,
+    CASE
+      WHEN COALESCE(parent_group.group_name_path, product_catalog_rows.product_group_name) IS NULL
+        THEN product_catalog_rows.product_name
+      ELSE concat_ws(' / ', COALESCE(parent_group.group_name_path, product_catalog_rows.product_group_name), product_catalog_rows.product_name)
+    END AS product_full_path,
+    COALESCE(
+      parent_group.group_level,
+      CASE
+        WHEN product_catalog_rows.product_group_code IS NOT NULL OR product_catalog_rows.product_group_name IS NOT NULL THEN 1
+        ELSE NULL
+      END
+    ) AS product_group_level
+  FROM product_catalog_rows
+  LEFT JOIN product_group_hierarchy parent_group
+    ON parent_group.enterprise_code = product_catalog_rows.enterprise_code
+   AND parent_group.group_code = product_catalog_rows.product_group_code
+
+  UNION ALL
+
+  SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     btrim(entity_code) AS product_code,
     NULLIF(btrim(entity_name), '') AS product_name,
     false AS is_deleted,
@@ -106,12 +202,19 @@ WITH product_sources AS (
     NULL::text AS product_group_code,
     NULL::text AS product_group_name,
     NULL::text AS product_group_ref,
-    false AS is_group
+    false AS is_group,
+    NULL::text AS product_group_code_path,
+    NULL::text AS product_group_path,
+    NULL::text AS product_full_path,
+    NULL::int AS product_group_level
   FROM one_c_mirror.latest_operational_rows
   WHERE dataset_name IN ('stock_balances', 'product_prices')
 ),
 latest_products AS (
-  SELECT DISTINCT ON (product_code)
+  SELECT DISTINCT ON (enterprise_code, product_code)
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     product_code,
     product_name,
     is_deleted,
@@ -121,12 +224,19 @@ latest_products AS (
     product_group_code,
     product_group_name,
     product_group_ref,
-    is_group
+    is_group,
+    product_group_code_path,
+    product_group_path,
+    product_full_path,
+    product_group_level
   FROM product_sources
   WHERE product_code IS NOT NULL AND product_code <> ''
-  ORDER BY product_code, is_deleted ASC, source_rank ASC, imported_at DESC NULLS LAST
+  ORDER BY enterprise_code, product_code, is_deleted ASC, source_rank ASC, imported_at DESC NULLS LAST
 )
 SELECT
+  products.enterprise_code,
+  products.enterprise_name,
+  products.enterprise_ref,
   products.product_code,
   COALESCE(products.product_name, prices.product_name) AS product_name,
   products.is_deleted,
@@ -141,14 +251,22 @@ SELECT
   products.product_group_code,
   products.product_group_name,
   products.product_group_ref,
-  products.is_group
+  products.is_group,
+  products.product_group_code_path,
+  products.product_group_path,
+  products.product_full_path,
+  products.product_group_level
 FROM latest_products products
 LEFT JOIN one_c_mirror.crm_product_price_summary prices
-  ON prices.product_code = products.product_code;
+  ON prices.enterprise_code = products.enterprise_code
+ AND prices.product_code = products.product_code;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_warehouses AS
 WITH warehouse_sources AS (
   SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     btrim(code) AS warehouse_code,
     NULLIF(btrim(name), '') AS warehouse_name,
     deletion_mark AS is_deleted,
@@ -163,6 +281,9 @@ WITH warehouse_sources AS (
   UNION ALL
 
   SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     btrim(warehouse_code) AS warehouse_code,
     NULLIF(btrim(warehouse_name), '') AS warehouse_name,
     false AS is_deleted,
@@ -171,7 +292,10 @@ WITH warehouse_sources AS (
   FROM one_c_mirror.latest_operational_rows
   WHERE dataset_name IN ('stock_balances', 'reserved_stock_balances')
 )
-SELECT DISTINCT ON (warehouse_code)
+SELECT DISTINCT ON (enterprise_code, warehouse_code)
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   warehouse_code,
   warehouse_name,
   is_deleted,
@@ -179,11 +303,14 @@ SELECT DISTINCT ON (warehouse_code)
   imported_at
 FROM warehouse_sources
 WHERE warehouse_code IS NOT NULL AND warehouse_code <> ''
-ORDER BY warehouse_code, is_deleted ASC, imported_at DESC NULLS LAST;
+ORDER BY enterprise_code, warehouse_code, is_deleted ASC, imported_at DESC NULLS LAST;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_counterparties AS
 WITH counterparty_sources AS (
   SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     btrim(code) AS counterparty_code,
     NULLIF(btrim(name), '') AS counterparty_name,
     deletion_mark AS is_deleted,
@@ -198,6 +325,9 @@ WITH counterparty_sources AS (
   UNION ALL
 
   SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     btrim(entity_code) AS counterparty_code,
     NULLIF(btrim(entity_name), '') AS counterparty_name,
     false AS is_deleted,
@@ -206,7 +336,10 @@ WITH counterparty_sources AS (
   FROM one_c_mirror.latest_operational_rows
   WHERE dataset_name = 'counterparty_settlements'
 )
-SELECT DISTINCT ON (counterparty_code)
+SELECT DISTINCT ON (enterprise_code, counterparty_code)
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   counterparty_code,
   counterparty_name,
   is_deleted,
@@ -214,11 +347,14 @@ SELECT DISTINCT ON (counterparty_code)
   imported_at
 FROM counterparty_sources
 WHERE counterparty_code IS NOT NULL AND counterparty_code <> ''
-ORDER BY counterparty_code, is_deleted ASC, imported_at DESC NULLS LAST;
+ORDER BY enterprise_code, counterparty_code, is_deleted ASC, imported_at DESC NULLS LAST;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_counterparty_contracts AS
 WITH contract_sources AS (
   SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     NULL::text AS counterparty_code,
     NULL::text AS counterparty_name,
     btrim(code) AS contract_code,
@@ -235,6 +371,9 @@ WITH contract_sources AS (
   UNION ALL
 
   SELECT
+    enterprise_code,
+    enterprise_name,
+    enterprise_ref,
     btrim(entity_code) AS counterparty_code,
     NULLIF(btrim(entity_name), '') AS counterparty_name,
     btrim(contract_code) AS contract_code,
@@ -245,7 +384,10 @@ WITH contract_sources AS (
   FROM one_c_mirror.latest_operational_rows
   WHERE dataset_name = 'counterparty_settlements'
 )
-SELECT DISTINCT ON (COALESCE(counterparty_code, ''), contract_code)
+SELECT DISTINCT ON (enterprise_code, COALESCE(counterparty_code, ''), contract_code)
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   counterparty_code,
   counterparty_name,
   contract_code,
@@ -255,10 +397,13 @@ SELECT DISTINCT ON (COALESCE(counterparty_code, ''), contract_code)
   imported_at
 FROM contract_sources
 WHERE contract_code IS NOT NULL AND contract_code <> ''
-ORDER BY COALESCE(counterparty_code, ''), contract_code, is_deleted ASC, imported_at DESC NULLS LAST;
+ORDER BY enterprise_code, COALESCE(counterparty_code, ''), contract_code, is_deleted ASC, imported_at DESC NULLS LAST;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_stock_balances AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   btrim(entity_code) AS product_code,
   max(NULLIF(btrim(entity_name), '')) AS product_name,
   btrim(warehouse_code) AS warehouse_code,
@@ -272,10 +417,13 @@ WHERE
   dataset_name IN ('stock_balances', 'reserved_stock_balances')
   AND entity_code IS NOT NULL
   AND btrim(entity_code) <> ''
-GROUP BY btrim(entity_code), btrim(warehouse_code);
+GROUP BY enterprise_code, enterprise_name, enterprise_ref, btrim(entity_code), btrim(warehouse_code);
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_counterparty_settlements AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   btrim(entity_code) AS counterparty_code,
   NULLIF(btrim(entity_name), '') AS counterparty_name,
   btrim(contract_code) AS contract_code,
@@ -296,6 +444,9 @@ WHERE dataset_name = 'counterparty_settlements';
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_counterparty_balance_summary AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   counterparty_code,
   max(counterparty_name) AS counterparty_name,
   contract_code,
@@ -313,10 +464,13 @@ SELECT
   max(snapshot_at) AS snapshot_at,
   max(imported_at) AS imported_at
 FROM one_c_mirror.crm_counterparty_settlements
-GROUP BY counterparty_code, contract_code, organization_code, currency;
+GROUP BY enterprise_code, enterprise_name, enterprise_ref, counterparty_code, contract_code, organization_code, currency;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_reference_items AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   object_type AS reference_type,
   catalog_name,
   source_file,
@@ -329,6 +483,9 @@ FROM one_c_mirror.latest_rows;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_reference_catalog_summary AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   reference_type,
   catalog_name,
   source_file,
@@ -336,10 +493,13 @@ SELECT
   count(*) FILTER (WHERE is_deleted)::int AS deleted_rows,
   max(imported_at) AS imported_at
 FROM one_c_mirror.crm_reference_items
-GROUP BY reference_type, catalog_name, source_file;
+GROUP BY enterprise_code, enterprise_name, enterprise_ref, reference_type, catalog_name, source_file;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_units AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS unit_code,
   name AS unit_name,
   is_deleted,
@@ -353,6 +513,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_currencies AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS currency_code,
   name AS currency_name,
   is_deleted,
@@ -366,6 +529,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_price_types AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS price_type_code,
   name AS price_type_name,
   is_deleted,
@@ -379,6 +545,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_product_groups AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS product_group_code,
   name AS product_group_name,
   is_deleted,
@@ -391,18 +560,29 @@ WHERE
   OR catalog_name = 'НоменклатурныеГруппы';
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_product_folders AS
-SELECT DISTINCT
-  product_group_code,
-  product_group_name,
-  product_group_ref
+SELECT DISTINCT ON (enterprise_code, product_code)
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
+  product_code AS product_group_code,
+  product_name AS product_group_name,
+  product_group_ref,
+  product_group_code_path,
+  product_group_path,
+  product_full_path AS product_group_full_path,
+  (COALESCE(product_group_level, 0) + 1)::int AS product_group_level
 FROM one_c_mirror.crm_products
 WHERE
-  product_group_code IS NOT NULL
-  OR product_group_name IS NOT NULL
-  OR product_group_ref IS NOT NULL;
+  is_group = true
+  AND product_code IS NOT NULL
+  AND product_code <> ''
+ORDER BY enterprise_code, product_code, product_full_path NULLS LAST;
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_product_kinds AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS product_kind_code,
   name AS product_kind_name,
   is_deleted,
@@ -416,6 +596,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_product_series AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS product_series_code,
   name AS product_series_name,
   is_deleted,
@@ -429,6 +612,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_product_characteristics AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS product_characteristic_code,
   name AS product_characteristic_name,
   is_deleted,
@@ -442,6 +628,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_organizations AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS organization_code,
   name AS organization_name,
   is_deleted,
@@ -455,6 +644,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_organization_units AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS organization_unit_code,
   name AS organization_unit_name,
   is_deleted,
@@ -468,6 +660,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_persons AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS person_code,
   name AS person_name,
   is_deleted,
@@ -481,6 +676,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_contact_info_types AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS contact_info_type_code,
   name AS contact_info_type_name,
   is_deleted,
@@ -494,6 +692,9 @@ WHERE
 
 CREATE OR REPLACE VIEW one_c_mirror.crm_bank_accounts AS
 SELECT
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   code AS bank_account_code,
   name AS bank_account_name,
   is_deleted,

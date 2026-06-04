@@ -11,6 +11,9 @@ DB_PORT="${DB_PORT:-5432}"
 BASE_URL="${BASE_URL:-http://192.168.0.5:8090}"
 LOG_FILE="${LOG_FILE:-/tmp/crm-1c-import-now.log}"
 CATALOG_IMPORT_REQUIRED="${CATALOG_IMPORT_REQUIRED:-0}"
+CRM_ENTERPRISE_CODE="${CRM_ENTERPRISE_CODE:-elista}"
+CRM_ENTERPRISE_NAME="${CRM_ENTERPRISE_NAME:-ЕЛІСТА}"
+CRM_ENTERPRISE_REF="${CRM_ENTERPRISE_REF:-${CRM_ENTERPRISE_CODE}}"
 
 if [[ "$(id -un)" == "postgres" ]]; then
   USE_POSTGRES_SUDO="${USE_POSTGRES_SUDO:-0}"
@@ -21,6 +24,7 @@ else
 fi
 
 export DB_NAME DB_USER DB_HOST DB_PORT BASE_URL USE_POSTGRES_SUDO CATALOG_IMPORT_REQUIRED
+export CRM_ENTERPRISE_CODE CRM_ENTERPRISE_NAME CRM_ENTERPRISE_REF
 
 run_psql_file() {
   local sql_file="$1"
@@ -57,6 +61,7 @@ main() {
   echo "RepoRoot: ${REPO_ROOT}"
   echo "BaseUrl: ${BASE_URL}"
   echo "Database: ${DB_NAME}"
+  echo "Enterprise: ${CRM_ENTERPRISE_NAME} (${CRM_ENTERPRISE_CODE}, ref=${CRM_ENTERPRISE_REF})"
   echo "USE_POSTGRES_SUDO: ${USE_POSTGRES_SUDO}"
   echo "CATALOG_IMPORT_REQUIRED: ${CATALOG_IMPORT_REQUIRED}"
 
@@ -84,31 +89,31 @@ main() {
 
   echo "Import counts:"
   run_psql_query "
-    SELECT 'crm_products' AS view_name, count(*) FROM one_c_mirror.crm_products
-    UNION ALL SELECT 'crm_product_prices', count(*) FROM one_c_mirror.crm_product_prices
-    UNION ALL SELECT 'crm_product_price_summary', count(*) FROM one_c_mirror.crm_product_price_summary
-    UNION ALL SELECT 'crm_warehouses', count(*) FROM one_c_mirror.crm_warehouses
-    UNION ALL SELECT 'crm_counterparties', count(*) FROM one_c_mirror.crm_counterparties
-    UNION ALL SELECT 'crm_counterparty_contracts', count(*) FROM one_c_mirror.crm_counterparty_contracts
-    UNION ALL SELECT 'crm_stock_balances', count(*) FROM one_c_mirror.crm_stock_balances
-    UNION ALL SELECT 'crm_counterparty_settlements', count(*) FROM one_c_mirror.crm_counterparty_settlements
-    UNION ALL SELECT 'crm_counterparty_balance_summary', count(*) FROM one_c_mirror.crm_counterparty_balance_summary
-    UNION ALL SELECT 'crm_reference_items', count(*) FROM one_c_mirror.crm_reference_items
-    UNION ALL SELECT 'crm_reference_catalog_summary', count(*) FROM one_c_mirror.crm_reference_catalog_summary
-    UNION ALL SELECT 'crm_units', count(*) FROM one_c_mirror.crm_units
-    UNION ALL SELECT 'crm_currencies', count(*) FROM one_c_mirror.crm_currencies
-    UNION ALL SELECT 'crm_price_types', count(*) FROM one_c_mirror.crm_price_types
-    UNION ALL SELECT 'crm_product_groups', count(*) FROM one_c_mirror.crm_product_groups
-    UNION ALL SELECT 'crm_product_folders', count(*) FROM one_c_mirror.crm_product_folders
-    UNION ALL SELECT 'crm_product_kinds', count(*) FROM one_c_mirror.crm_product_kinds
-    UNION ALL SELECT 'crm_product_series', count(*) FROM one_c_mirror.crm_product_series
-    UNION ALL SELECT 'crm_product_characteristics', count(*) FROM one_c_mirror.crm_product_characteristics
-    UNION ALL SELECT 'crm_organizations', count(*) FROM one_c_mirror.crm_organizations
-    UNION ALL SELECT 'crm_organization_units', count(*) FROM one_c_mirror.crm_organization_units
-    UNION ALL SELECT 'crm_persons', count(*) FROM one_c_mirror.crm_persons
-    UNION ALL SELECT 'crm_contact_info_types', count(*) FROM one_c_mirror.crm_contact_info_types
-    UNION ALL SELECT 'crm_bank_accounts', count(*) FROM one_c_mirror.crm_bank_accounts
-    ORDER BY view_name;
+    SELECT enterprise_code, enterprise_name, 'crm_products' AS view_name, count(*) FROM one_c_mirror.crm_products GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_product_prices', count(*) FROM one_c_mirror.crm_product_prices GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_product_price_summary', count(*) FROM one_c_mirror.crm_product_price_summary GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_warehouses', count(*) FROM one_c_mirror.crm_warehouses GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_counterparties', count(*) FROM one_c_mirror.crm_counterparties GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_counterparty_contracts', count(*) FROM one_c_mirror.crm_counterparty_contracts GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_stock_balances', count(*) FROM one_c_mirror.crm_stock_balances GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_counterparty_settlements', count(*) FROM one_c_mirror.crm_counterparty_settlements GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_counterparty_balance_summary', count(*) FROM one_c_mirror.crm_counterparty_balance_summary GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_reference_items', count(*) FROM one_c_mirror.crm_reference_items GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_reference_catalog_summary', count(*) FROM one_c_mirror.crm_reference_catalog_summary GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_units', count(*) FROM one_c_mirror.crm_units GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_currencies', count(*) FROM one_c_mirror.crm_currencies GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_price_types', count(*) FROM one_c_mirror.crm_price_types GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_product_groups', count(*) FROM one_c_mirror.crm_product_groups GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_product_folders', count(*) FROM one_c_mirror.crm_product_folders GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_product_kinds', count(*) FROM one_c_mirror.crm_product_kinds GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_product_series', count(*) FROM one_c_mirror.crm_product_series GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_product_characteristics', count(*) FROM one_c_mirror.crm_product_characteristics GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_organizations', count(*) FROM one_c_mirror.crm_organizations GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_organization_units', count(*) FROM one_c_mirror.crm_organization_units GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_persons', count(*) FROM one_c_mirror.crm_persons GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_contact_info_types', count(*) FROM one_c_mirror.crm_contact_info_types GROUP BY enterprise_code, enterprise_name
+    UNION ALL SELECT enterprise_code, enterprise_name, 'crm_bank_accounts', count(*) FROM one_c_mirror.crm_bank_accounts GROUP BY enterprise_code, enterprise_name
+    ORDER BY enterprise_code, view_name;
   "
 
   if [[ "${catalog_status}" -ne 0 ]]; then

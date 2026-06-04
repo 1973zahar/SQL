@@ -7,6 +7,7 @@
 - 1C-база `elista` залишається production-джерелом.
 - Імпорт нижче тільки читає CSV-файли, які вже експортовані з 1C.
 - PostgreSQL отримує сире дзеркало в `one_c_mirror`; цей крок не пише нічого назад у 1C.
+- Кілька підприємств зберігаються в одних таблицях через поля `enterprise_code`, `enterprise_name`, `enterprise_ref`.
 
 ## Очікувані CSV-файли
 
@@ -58,12 +59,55 @@ USE_POSTGRES_SUDO=1 bash scripts/ubuntu/import-1c-catalogs-http.sh
 
 У sudo-режимі робоча папка за замовчуванням буде `/tmp/crm-imports/1c`, щоб процес `postgres` міг прочитати CSV для `\copy`.
 
+## Multi-company імпорт без стирання попередніх підприємств
+
+Після експорту `elista` імпорт можна запускати як раніше або явно:
+
+```bash
+cd ~/SQL
+CRM_ENTERPRISE_CODE=elista \
+CRM_ENTERPRISE_NAME='ЕЛІСТА' \
+CRM_ENTERPRISE_REF=elista \
+USE_POSTGRES_SUDO=1 \
+bash scripts/ubuntu/import-1c-catalogs-http.sh
+```
+
+Після експорту другої бази на `MESER`:
+
+```text
+Srvr="192.168.0.5";Ref="pp_hor";
+```
+
+CSV у `D:\CRM\Exports` будуть від `pp_hor`. На Ubuntu їх треба імпортувати з окремою міткою підприємства:
+
+```bash
+cd ~/SQL
+CRM_ENTERPRISE_CODE=pp_hor \
+CRM_ENTERPRISE_NAME='ФОП Служалий З.М.' \
+CRM_ENTERPRISE_REF=pp_hor \
+USE_POSTGRES_SUDO=1 \
+bash scripts/ubuntu/import-1c-catalogs-http.sh
+```
+
+Для операційних даних `pp_hor`:
+
+```bash
+cd ~/SQL
+CRM_ENTERPRISE_CODE=pp_hor \
+CRM_ENTERPRISE_NAME='ФОП Служалий З.М.' \
+CRM_ENTERPRISE_REF=pp_hor \
+USE_POSTGRES_SUDO=1 \
+bash scripts/ubuntu/import-1c-operational-http.sh
+```
+
+Імпорт додає нові `import_batches`/`operational_batches`. Старі рядки `elista` не видаляються, а `latest_rows` і CRM-ready views розділяють дані по `enterprise_code`.
+
 ## Що створюється в PostgreSQL
 
 Міграція `db/migrations/002_one_c_mirror.sql` створює:
 
 - `one_c_mirror.import_batches` - журнал запусків імпорту;
-- `one_c_mirror.raw_rows` - сирі рядки CSV з `row_no`, `external_ref`, `code`, `name`, `deletion_mark`, `raw_data`;
+- `one_c_mirror.raw_rows` - сирі рядки CSV з `enterprise_code`, `enterprise_name`, `enterprise_ref`, `row_no`, `external_ref`, `code`, `name`, `deletion_mark`, `raw_data`;
 - `one_c_mirror.latest_rows` - поточний зріз останніх імпортованих рядків за об'єктом і ключем.
 
 Оновлений importer не відкидає додаткові CSV-колонки. Для `1c_products.csv` поля `is_group`, `product_group_ref`, `product_group_code`, `product_group_name` зберігаються в `raw_data`, а `db/migrations/003_one_c_crm_ready_views.sql` виводить їх у:
@@ -85,10 +129,11 @@ bash scripts/ubuntu/apply-1c-viewer-product-folder-update.sh
 
 Успішний результат має показати:
 
-- `viewerBuild: 2026-06-02-product-folder-columns-3`;
+- `viewerBuild: 2026-06-03-multi-company-enterprise-1` або новіший;
 - `folder columns ok: True`;
 - у `product columns` мають бути `product_group_name` і `product_group_code`;
-- у верхній панелі viewer має з'явитися `build: 2026-06-02-product-folder-columns-3`.
+- у верхній панелі viewer має з'явитися `build: 2026-06-03-multi-company-enterprise-1` або новіший;
+- у верхній панелі viewer має бути фільтр `Підприємство`.
 
 Після цього оновіть сторінку браузера через Ctrl+F5.
 
@@ -96,14 +141,14 @@ bash scripts/ubuntu/apply-1c-viewer-product-folder-update.sh
 
 ```bash
 psql -h 127.0.0.1 -U crm_admin -d crm_hub -c "
-  SELECT object_type, count(*)::int AS rows
+  SELECT enterprise_code, enterprise_name, object_type, count(*)::int AS rows
   FROM one_c_mirror.latest_rows
-  GROUP BY object_type
-  ORDER BY object_type;
+  GROUP BY enterprise_code, enterprise_name, object_type
+  ORDER BY enterprise_code, object_type;
 "
 
 psql -h 127.0.0.1 -U crm_admin -d crm_hub -c "
-  SELECT object_type, source_file, row_count, status, completed_at
+  SELECT enterprise_code, enterprise_name, object_type, source_file, row_count, status, completed_at
   FROM one_c_mirror.import_batches
   ORDER BY started_at DESC
   LIMIT 20;

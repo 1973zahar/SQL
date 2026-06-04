@@ -63,6 +63,18 @@ $env:CRM_1C_CONNECTION_STRING = 'Srvr="192.168.0.5";Ref="elista";Usr="<1C_USER>"
 $env:CRM_1C_CONNECTION_STRING = 'Srvr="192.168.0.5";Ref="elista";'
 ```
 
+Для другої 1C-бази ФОП Служалий З.М. використовується:
+
+```text
+Srvr="192.168.0.5";Ref="pp_hor";
+```
+
+Запуск операційних даних для `pp_hor` без зміни файлів:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'D:\CRM\Exports\export-1c-operational-data.ps1' -Set all -OutputDir 'D:\CRM\Exports' -Server '192.168.0.5' -Ref 'pp_hor'
+```
+
 Запустити експорт:
 
 ```powershell
@@ -97,6 +109,19 @@ cd ~/SQL
 git pull --ff-only
 bash scripts/ubuntu/import-1c-operational-http.sh
 ```
+
+Для імпорту файлів, які щойно були експортовані з `pp_hor`, запускати з міткою підприємства:
+
+```bash
+cd ~/SQL
+CRM_ENTERPRISE_CODE=pp_hor \
+CRM_ENTERPRISE_NAME='ФОП Служалий З.М.' \
+CRM_ENTERPRISE_REF=pp_hor \
+USE_POSTGRES_SUDO=1 \
+bash scripts/ubuntu/import-1c-operational-http.sh
+```
+
+Цей запуск додає окремий зріз підприємства `pp_hor`; він не стирає попередні рядки `elista`.
 
 Якщо треба запускати через локального користувача `postgres`:
 

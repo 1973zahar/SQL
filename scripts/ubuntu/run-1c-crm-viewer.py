@@ -22,7 +22,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 
-VIEWER_BUILD = "2026-06-02-product-folder-columns-3"
+VIEWER_BUILD = "2026-06-04-multi-company-row-limits-1"
 
 
 VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
@@ -32,6 +32,10 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         "columns": [
             ["product_code", "Код"],
             ["product_name", "Товар"],
+            ["product_group_path", "Шлях папок"],
+            ["product_full_path", "Повний шлях"],
+            ["product_group_code_path", "Коди шляху"],
+            ["product_group_level", "Рівень"],
             ["product_group_name", "Папка"],
             ["product_group_code", "Код папки"],
             ["is_deleted", "Видалено"],
@@ -44,8 +48,15 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               product_code,
               product_name,
+              product_group_path,
+              product_full_path,
+              product_group_code_path,
+              product_group_level::text AS product_group_level,
               product_group_name,
               product_group_code,
               is_deleted::text AS is_deleted,
@@ -56,10 +67,11 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               price_types,
               source_file
             FROM one_c_mirror.crm_products
-            ORDER BY product_name NULLS LAST, product_code
+            ORDER BY enterprise_name NULLS LAST, product_name NULLS LAST, product_code
         """,
     },
     "prices": {
+        "row_limit": 50000,
         "label": "Ціни",
         "description": "Ціни товарів по типах цін з 1C",
         "columns": [
@@ -73,6 +85,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               product_code,
               product_name,
               price_type_code,
@@ -81,7 +96,7 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               price::text AS price,
               snapshot_at::text AS snapshot_at
             FROM one_c_mirror.crm_product_prices
-            ORDER BY product_name NULLS LAST, price_type_name NULLS LAST, product_code
+            ORDER BY enterprise_name NULLS LAST, product_name NULLS LAST, price_type_name NULLS LAST, product_code
         """,
     },
     "warehouses": {
@@ -95,12 +110,15 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               warehouse_code,
               warehouse_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_warehouses
-            ORDER BY warehouse_name NULLS LAST, warehouse_code
+            ORDER BY enterprise_name NULLS LAST, warehouse_name NULLS LAST, warehouse_code
         """,
     },
     "stock": {
@@ -116,6 +134,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               product_code,
               product_name,
               warehouse_name,
@@ -123,7 +144,7 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               reserved_quantity::text AS reserved_quantity,
               snapshot_at::text AS snapshot_at
             FROM one_c_mirror.crm_stock_balances
-            ORDER BY product_name NULLS LAST, warehouse_name NULLS LAST, product_code
+            ORDER BY enterprise_name NULLS LAST, product_name NULLS LAST, warehouse_name NULLS LAST, product_code
         """,
     },
     "counterparties": {
@@ -137,12 +158,15 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               counterparty_code,
               counterparty_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_counterparties
-            ORDER BY counterparty_name NULLS LAST, counterparty_code
+            ORDER BY enterprise_name NULLS LAST, counterparty_name NULLS LAST, counterparty_code
         """,
     },
     "contracts": {
@@ -157,13 +181,16 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               counterparty_code,
               counterparty_name,
               contract_code,
               contract_name,
               is_deleted::text AS is_deleted
             FROM one_c_mirror.crm_counterparty_contracts
-            ORDER BY counterparty_name NULLS LAST, contract_name NULLS LAST, contract_code
+            ORDER BY enterprise_name NULLS LAST, counterparty_name NULLS LAST, contract_name NULLS LAST, contract_code
         """,
     },
     "settlements": {
@@ -181,6 +208,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               counterparty_code,
               counterparty_name,
               contract_name,
@@ -190,7 +220,7 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               balance_sign,
               snapshot_at::text AS snapshot_at
             FROM one_c_mirror.crm_counterparty_settlements
-            ORDER BY abs(amount) DESC NULLS LAST, counterparty_name NULLS LAST
+            ORDER BY enterprise_name NULLS LAST, abs(amount) DESC NULLS LAST, counterparty_name NULLS LAST
         """,
     },
     "balance": {
@@ -208,6 +238,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               counterparty_code,
               counterparty_name,
               contract_name,
@@ -217,7 +250,7 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               amount_abs::text AS amount_abs,
               balance_sign
             FROM one_c_mirror.crm_counterparty_balance_summary
-            ORDER BY amount_abs DESC NULLS LAST, counterparty_name NULLS LAST
+            ORDER BY enterprise_name NULLS LAST, amount_abs DESC NULLS LAST, counterparty_name NULLS LAST
         """,
     },
     "reference_summary": {
@@ -233,6 +266,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               reference_type,
               catalog_name,
               source_file,
@@ -240,7 +276,7 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               deleted_rows::text AS deleted_rows,
               imported_at::text AS imported_at
             FROM one_c_mirror.crm_reference_catalog_summary
-            ORDER BY catalog_name, reference_type
+            ORDER BY enterprise_name NULLS LAST, catalog_name, reference_type
         """,
     },
     "units": {
@@ -254,12 +290,15 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               unit_code,
               unit_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_units
-            ORDER BY unit_name NULLS LAST, unit_code
+            ORDER BY enterprise_name NULLS LAST, unit_name NULLS LAST, unit_code
         """,
     },
     "price_types": {
@@ -273,12 +312,15 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               price_type_code,
               price_type_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_price_types
-            ORDER BY price_type_name NULLS LAST, price_type_code
+            ORDER BY enterprise_name NULLS LAST, price_type_name NULLS LAST, price_type_code
         """,
     },
     "currencies": {
@@ -292,12 +334,15 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               currency_code,
               currency_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_currencies
-            ORDER BY currency_name NULLS LAST, currency_code
+            ORDER BY enterprise_name NULLS LAST, currency_name NULLS LAST, currency_code
         """,
     },
     "product_groups": {
@@ -311,29 +356,43 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               product_group_code,
               product_group_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_product_groups
-            ORDER BY product_group_name NULLS LAST, product_group_code
+            ORDER BY enterprise_name NULLS LAST, product_group_name NULLS LAST, product_group_code
         """,
     },
     "product_folders": {
         "label": "Папки товарів",
         "description": "Папка/група, прив'язана до кожного товару з 1C",
         "columns": [
+            ["product_group_full_path", "Повний шлях"],
+            ["product_group_path", "Батьківський шлях"],
+            ["product_group_code_path", "Коди шляху"],
+            ["product_group_level", "Рівень"],
             ["product_group_code", "Код папки"],
             ["product_group_name", "Папка"],
             ["product_group_ref", "Посилання"],
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
+              product_group_full_path,
+              product_group_path,
+              product_group_code_path,
+              product_group_level::text AS product_group_level,
               product_group_code,
               product_group_name,
               product_group_ref
             FROM one_c_mirror.crm_product_folders
-            ORDER BY product_group_name NULLS LAST, product_group_code NULLS LAST
+            ORDER BY enterprise_name NULLS LAST, product_group_full_path NULLS LAST, product_group_code NULLS LAST
         """,
     },
     "organizations": {
@@ -347,12 +406,15 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               organization_code,
               organization_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_organizations
-            ORDER BY organization_name NULLS LAST, organization_code
+            ORDER BY enterprise_name NULLS LAST, organization_name NULLS LAST, organization_code
         """,
     },
     "persons": {
@@ -366,12 +428,15 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               person_code,
               person_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_persons
-            ORDER BY person_name NULLS LAST, person_code
+            ORDER BY enterprise_name NULLS LAST, person_name NULLS LAST, person_code
         """,
     },
     "bank_accounts": {
@@ -385,15 +450,19 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               bank_account_code,
               bank_account_name,
               is_deleted::text AS is_deleted,
               source_file
             FROM one_c_mirror.crm_bank_accounts
-            ORDER BY bank_account_name NULLS LAST, bank_account_code
+            ORDER BY enterprise_name NULLS LAST, bank_account_name NULLS LAST, bank_account_code
         """,
     },
     "catalog_latest": {
+        "row_limit": 25000,
         "label": "Довідники latest",
         "description": "Останній зріз імпортованих довідників 1C",
         "columns": [
@@ -407,6 +476,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               object_type,
               catalog_name,
               code,
@@ -415,10 +487,11 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               source_file,
               imported_at::text AS imported_at
             FROM one_c_mirror.latest_rows
-            ORDER BY catalog_name, name NULLS LAST, code
+            ORDER BY enterprise_name NULLS LAST, catalog_name, name NULLS LAST, code
         """,
     },
     "catalog_raw": {
+        "row_limit": 10000,
         "label": "Довідники raw",
         "description": "Усі сирі рядки імпортованих довідників з історією batch",
         "columns": [
@@ -435,6 +508,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               id::text AS id,
               import_batch_id::text AS import_batch_id,
               object_type,
@@ -446,7 +522,7 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               source_file,
               imported_at::text AS imported_at
             FROM one_c_mirror.raw_rows
-            ORDER BY imported_at DESC, id DESC
+            ORDER BY enterprise_name NULLS LAST, imported_at DESC, id DESC
         """,
     },
     "catalog_batches": {
@@ -465,6 +541,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               id::text AS id,
               object_type,
               catalog_name,
@@ -475,10 +554,11 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               started_at::text AS started_at,
               completed_at::text AS completed_at
             FROM one_c_mirror.import_batches
-            ORDER BY started_at DESC, source_file
+            ORDER BY enterprise_name NULLS LAST, started_at DESC, source_file
         """,
     },
     "operational_latest": {
+        "row_limit": 25000,
         "label": "Операційні latest",
         "description": "Останній зріз операційних даних 1C",
         "columns": [
@@ -496,6 +576,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               dataset_name,
               row_no::text AS row_no,
               entity_code,
@@ -508,10 +591,11 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               amount::text AS amount,
               imported_at::text AS imported_at
             FROM one_c_mirror.latest_operational_rows
-            ORDER BY dataset_name, row_no
+            ORDER BY enterprise_name NULLS LAST, dataset_name, row_no
         """,
     },
     "operational_raw": {
+        "row_limit": 10000,
         "label": "Операційні raw",
         "description": "Усі сирі рядки операційного імпорту з історією batch",
         "columns": [
@@ -531,6 +615,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               id::text AS id,
               import_batch_id::text AS import_batch_id,
               dataset_name,
@@ -545,7 +632,7 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               source_file,
               imported_at::text AS imported_at
             FROM one_c_mirror.operational_rows
-            ORDER BY imported_at DESC, id DESC
+            ORDER BY enterprise_name NULLS LAST, imported_at DESC, id DESC
         """,
     },
     "operational_batches": {
@@ -564,6 +651,9 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
         ],
         "sql": """
             SELECT
+              enterprise_code,
+              enterprise_name,
+              enterprise_ref,
               id::text AS id,
               dataset_name,
               object_type,
@@ -574,7 +664,7 @@ VIEW_DEFINITIONS: dict[str, dict[str, Any]] = {
               started_at::text AS started_at,
               completed_at::text AS completed_at
             FROM one_c_mirror.operational_batches
-            ORDER BY started_at DESC, source_file
+            ORDER BY enterprise_name NULLS LAST, started_at DESC, source_file
         """,
     },
 }
@@ -699,7 +789,7 @@ INDEX_HTML = r"""<!doctype html>
 
     .toolbar {
       display: grid;
-      grid-template-columns: minmax(220px, 420px) auto auto auto minmax(0, 1fr);
+      grid-template-columns: minmax(180px, 360px) minmax(170px, 240px) auto auto auto auto minmax(0, 1fr);
       gap: 10px;
       align-items: center;
       margin-bottom: 12px;
@@ -837,6 +927,7 @@ INDEX_HTML = r"""<!doctype html>
         grid-template-columns: 1fr 1fr;
       }
       #search { grid-column: 1 / -1; }
+      #enterpriseFilter { grid-column: 1 / -1; }
       .summary {
         grid-column: 1 / -1;
         justify-self: start;
@@ -861,6 +952,9 @@ INDEX_HTML = r"""<!doctype html>
     <main>
       <div class="toolbar">
         <input id="search" type="search" placeholder="Пошук">
+        <select id="enterpriseFilter" aria-label="Підприємство">
+          <option value="">Усі підприємства</option>
+        </select>
         <select id="pageSize" aria-label="Рядків на сторінці">
           <option value="25">25</option>
           <option value="50" selected>50</option>
@@ -889,6 +983,7 @@ INDEX_HTML = r"""<!doctype html>
     const state = {
       active: "stock",
       query: "",
+      enterprise: "",
       page: 1,
       pageSize: 50,
       sortKey: "",
@@ -898,6 +993,7 @@ INDEX_HTML = r"""<!doctype html>
     };
 
     const numericKeys = new Set(["quantity", "reserved_quantity", "amount", "amount_abs", "price_count", "min_price", "max_price", "price"]);
+    const enterpriseColumn = ["enterprise_name", "Підприємство"];
 
     function text(value) {
       return value === null || value === undefined ? "" : String(value);
@@ -912,10 +1008,67 @@ INDEX_HTML = r"""<!doctype html>
       return new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 3 }).format(numberValue(value));
     }
 
+    function enterpriseKey(row) {
+      return text(row.enterprise_code) || text(row.enterprise_name) || text(row.enterprise_ref);
+    }
+
+    function enterpriseLabel(row) {
+      const name = text(row.enterprise_name);
+      const code = text(row.enterprise_code);
+      if (name && code && name !== code) {
+        return `${name} (${code})`;
+      }
+      return name || code || text(row.enterprise_ref);
+    }
+
+    function viewColumns(view) {
+      const columns = view.columns || [];
+      const hasEnterpriseColumn = columns.some(([key]) => key === enterpriseColumn[0]);
+      const hasEnterpriseRows = view.rows.some(row => enterpriseKey(row) !== "");
+      return hasEnterpriseRows && !hasEnterpriseColumn ? [enterpriseColumn, ...columns] : columns;
+    }
+
+    function enterpriseOptions() {
+      const options = new Map();
+      if (!state.payload || !state.payload.views) {
+        return options;
+      }
+      for (const view of Object.values(state.payload.views)) {
+        for (const row of view.rows || []) {
+          const key = enterpriseKey(row);
+          if (key && !options.has(key)) {
+            options.set(key, enterpriseLabel(row));
+          }
+        }
+      }
+      return new Map([...options.entries()].sort((a, b) => a[1].localeCompare(b[1], "uk", { sensitivity: "base" })));
+    }
+
+    function updateEnterpriseFilter() {
+      const select = document.getElementById("enterpriseFilter");
+      const options = enterpriseOptions();
+      const current = options.has(state.enterprise) ? state.enterprise : "";
+      state.enterprise = current;
+      select.innerHTML = `<option value="">Усі підприємства</option>`;
+      for (const [key, label] of options.entries()) {
+        const option = document.createElement("option");
+        option.value = key;
+        option.textContent = label;
+        option.selected = key === current;
+        select.appendChild(option);
+      }
+      select.disabled = options.size <= 1;
+      select.value = current;
+    }
+
     function filteredRows() {
       const view = state.payload.views[state.active];
       const query = state.query.trim().toLowerCase();
       let rows = view.rows;
+
+      if (state.enterprise) {
+        rows = rows.filter(row => enterpriseKey(row) === state.enterprise);
+      }
 
       if (query) {
         rows = rows.filter(row => Object.values(row).some(value => text(value).toLowerCase().includes(query)));
@@ -977,19 +1130,20 @@ INDEX_HTML = r"""<!doctype html>
     function renderTable(rows) {
       const wrap = document.getElementById("tableWrap");
       const view = state.payload.views[state.active];
+      const columns = viewColumns(view);
       const pageCount = Math.max(1, Math.ceil(rows.length / state.pageSize));
       state.page = Math.min(state.page, pageCount);
       const start = (state.page - 1) * state.pageSize;
       const pageRows = rows.slice(start, start + state.pageSize);
 
-      const header = view.columns.map(([key, label]) => {
+      const header = columns.map(([key, label]) => {
         const sortMark = state.sortKey === key ? (state.sortDir === "asc" ? " ▲" : " ▼") : "";
         const numericClass = numericKeys.has(key) ? " numeric" : "";
         return `<th class="${numericClass}" data-key="${key}">${label}${sortMark}</th>`;
       }).join("");
 
       const body = pageRows.map(row => {
-        return `<tr>${view.columns.map(([key]) => {
+        return `<tr>${columns.map(([key]) => {
           const value = text(row[key]);
           const numericClass = numericKeys.has(key) ? " numeric" : "";
           const signClass = key === "balance_sign" ? ` ${value}` : "";
@@ -1040,6 +1194,7 @@ INDEX_HTML = r"""<!doctype html>
           if (response.ok) {
             state.payload = await response.json();
             updateMeta();
+            updateEnterpriseFilter();
             render();
           }
         } catch (error) {
@@ -1072,6 +1227,7 @@ INDEX_HTML = r"""<!doctype html>
         state.payload = await response.json();
         updateMeta();
         updateImportButton();
+        updateEnterpriseFilter();
         render();
         scheduleLoadingRefresh();
       } catch (error) {
@@ -1101,6 +1257,7 @@ INDEX_HTML = r"""<!doctype html>
         state.payload = await response.json();
         state.page = 1;
         updateMeta();
+        updateEnterpriseFilter();
         status.textContent = "Оновлено";
         render();
       } catch (error) {
@@ -1126,9 +1283,10 @@ INDEX_HTML = r"""<!doctype html>
         if (!response.ok) {
           throw new Error(result.error || `HTTP ${response.status}`);
         }
-        state.payload = result.payload;
+        state.payload = result.payload || result;
         state.page = 1;
         updateMeta();
+        updateEnterpriseFilter();
         status.textContent = "Імпорт завершено";
         render();
       } catch (error) {
@@ -1141,6 +1299,11 @@ INDEX_HTML = r"""<!doctype html>
 
     document.getElementById("search").addEventListener("input", event => {
       state.query = event.target.value;
+      state.page = 1;
+      render();
+    });
+    document.getElementById("enterpriseFilter").addEventListener("change", event => {
+      state.enterprise = event.target.value;
       state.page = 1;
       render();
     });
@@ -1244,18 +1407,31 @@ def run_copy_query(args: argparse.Namespace, sql: str) -> list[dict[str, str]]:
     return list(csv.DictReader(io.StringIO(result.stdout)))
 
 
+def query_with_row_limit(sql: str, row_limit: int | None) -> str:
+    if not row_limit:
+        return sql
+    return f"{sql.strip().rstrip(';')}\nLIMIT {row_limit + 1}"
+
+
 def load_payload(args: argparse.Namespace) -> dict[str, Any]:
     views: dict[str, Any] = {}
 
     for key, definition in VIEW_DEFINITIONS.items():
-        rows = run_copy_query(args, definition["sql"])
+        row_limit = definition.get("row_limit")
+        rows = run_copy_query(args, query_with_row_limit(definition["sql"], row_limit))
+        truncated = bool(row_limit and len(rows) > row_limit)
+        if truncated:
+            rows = rows[:row_limit]
         views[key] = {
             "label": definition["label"],
             "description": definition["description"],
             "columns": definition["columns"],
             "rows": rows,
+            "rowLimit": row_limit,
+            "truncated": truncated,
         }
-        print(f"Loaded {definition['label']}: {len(rows)} rows")
+        suffix = f" (limited to {row_limit})" if truncated else ""
+        print(f"Loaded {definition['label']}: {len(rows)} rows{suffix}")
 
     return {
         "loadedAt": datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S %Z"),
@@ -1274,6 +1450,8 @@ def empty_payload(loading: bool = True, error: str | None = None) -> dict[str, A
             "description": definition["description"],
             "columns": definition["columns"],
             "rows": [],
+            "rowLimit": definition.get("row_limit"),
+            "truncated": False,
         }
 
     return {
@@ -1324,8 +1502,16 @@ def run_import_command(args: argparse.Namespace) -> dict[str, str]:
 
 class ViewerHandler(BaseHTTPRequestHandler):
     payload: dict[str, Any] = {}
+    payload_json: bytes = b"{}"
     payload_lock = threading.Lock()
     app_args: argparse.Namespace | None = None
+
+    @classmethod
+    def set_payload(cls, payload: dict[str, Any]) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        with cls.payload_lock:
+            cls.payload = payload
+            cls.payload_json = body
 
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
@@ -1378,8 +1564,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
 
         if path == "/api/data":
             with self.payload_lock:
-                payload = self.payload
-            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                body = self.payload_json
             self.send_bytes(body, "application/json; charset=utf-8")
             return
 
@@ -1418,18 +1603,13 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if args is None:
                 raise RuntimeError("viewer args are not available")
 
-            import_result: dict[str, str] | None = None
             if path == "/api/import-now":
-                import_result = run_import_command(args)
+                run_import_command(args)
 
             payload = load_payload(args)
+            self.__class__.set_payload(payload)
             with self.payload_lock:
-                self.__class__.payload = payload
-            if path == "/api/import-now":
-                body_data: dict[str, Any] = {"payload": payload, "import": import_result}
-            else:
-                body_data = payload
-            body = json.dumps(body_data, ensure_ascii=False).encode("utf-8")
+                body = self.__class__.payload_json
             self.send_bytes(body, "application/json; charset=utf-8")
         except Exception as exc:
             body = json.dumps({"error": str(exc)}, ensure_ascii=False).encode("utf-8")
@@ -1439,7 +1619,7 @@ class ViewerHandler(BaseHTTPRequestHandler):
 def main() -> int:
     args = parse_args()
     prime_sudo(args)
-    ViewerHandler.payload = empty_payload(loading=True)
+    ViewerHandler.set_payload(empty_payload(loading=True))
     ViewerHandler.app_args = args
 
     def load_initial_payload() -> None:
@@ -1448,8 +1628,7 @@ def main() -> int:
         except Exception as exc:
             print(f"ERROR: initial SQL payload load failed: {exc}", file=sys.stderr)
             payload = empty_payload(loading=False, error=str(exc))
-        with ViewerHandler.payload_lock:
-            ViewerHandler.payload = payload
+        ViewerHandler.set_payload(payload)
 
     threading.Thread(target=load_initial_payload, name="crm-viewer-loader", daemon=True).start()
 

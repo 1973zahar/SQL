@@ -44,6 +44,20 @@ $env:CRM_1C_CONNECTION_STRING = 'Srvr="192.168.0.5";Ref="elista";Usr="<1C_USER>"
 $env:CRM_1C_CONNECTION_STRING = 'Srvr="192.168.0.5";Ref="elista";'
 ```
 
+Для іншої 1C-бази можна не міняти скрипт і не переписувати `CRM_1C_CONNECTION_STRING`. PowerShell-обгортка підтримує `-Server` і `-Ref`. Для ФОП Служалий З.М. база:
+
+```text
+Srvr="192.168.0.5";Ref="pp_hor";
+```
+
+Запуск довідників для цієї бази:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'D:\CRM\Exports\export-1c-catalogs.ps1' -Set all -OutputDir 'D:\CRM\Exports' -Server '192.168.0.5' -Ref 'pp_hor'
+```
+
+Це тільки перезаписує CSV-файли в `D:\CRM\Exports` після успішного експорту. Дані `elista` у PostgreSQL не стираються, якщо Ubuntu-імпорт запускати з правильними `CRM_ENTERPRISE_*`.
+
 Запустити продовження експорту з будь-якої поточної папки однією командою, якщо репозиторій є на `MESER`:
 
 ```powershell

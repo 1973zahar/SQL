@@ -10,6 +10,9 @@ DB_HOST="${DB_HOST:-127.0.0.1}"
 DB_PORT="${DB_PORT:-5432}"
 BASE_URL="${BASE_URL:-http://192.168.0.5:8090}"
 USE_POSTGRES_SUDO="${USE_POSTGRES_SUDO:-0}"
+CRM_ENTERPRISE_CODE="${CRM_ENTERPRISE_CODE:-elista}"
+CRM_ENTERPRISE_NAME="${CRM_ENTERPRISE_NAME:-ЕЛІСТА}"
+CRM_ENTERPRISE_REF="${CRM_ENTERPRISE_REF:-${CRM_ENTERPRISE_CODE}}"
 
 CURRENT_USER="$(id -un 2>/dev/null || printf 'user')"
 DEFAULT_WORK_DIR="${HOME}/crm-imports/1c"
@@ -198,6 +201,7 @@ prepare_work_dir
 
 echo "Ensuring one_c_mirror schema exists..."
 run_psql < "${REPO_ROOT}/db/migrations/002_one_c_mirror.sql"
+echo "Enterprise: ${CRM_ENTERPRISE_NAME} (${CRM_ENTERPRISE_CODE}, ref=${CRM_ENTERPRISE_REF})"
 
 for item in "${items[@]}"; do
   IFS="|" read -r catalog_name object_type source_file required <<<"${item}"
@@ -221,12 +225,18 @@ for item in "${items[@]}"; do
   batch_id="$(
     run_psql -Atqc "
       INSERT INTO one_c_mirror.import_batches (
+        enterprise_code,
+        enterprise_name,
+        enterprise_ref,
         object_type,
         catalog_name,
         source_file,
         source_url
       )
       VALUES (
+        $(sql_literal "${CRM_ENTERPRISE_CODE}"),
+        $(sql_literal "${CRM_ENTERPRISE_NAME}"),
+        $(sql_literal "${CRM_ENTERPRISE_REF}"),
         $(sql_literal "${object_type}"),
         $(sql_literal "${catalog_name}"),
         $(sql_literal "${source_file}"),
@@ -251,6 +261,9 @@ CREATE TEMP TABLE import_stage (
 
 INSERT INTO one_c_mirror.raw_rows (
   import_batch_id,
+  enterprise_code,
+  enterprise_name,
+  enterprise_ref,
   object_type,
   object_name,
   catalog_name,
@@ -265,6 +278,9 @@ INSERT INTO one_c_mirror.raw_rows (
 )
 SELECT
   '${batch_id}'::uuid,
+  $(sql_literal "${CRM_ENTERPRISE_CODE}"),
+  $(sql_literal "${CRM_ENTERPRISE_NAME}"),
+  $(sql_literal "${CRM_ENTERPRISE_REF}"),
   $(sql_literal "${object_type}"),
   $(sql_literal "${catalog_name}"),
   $(sql_literal "${catalog_name}"),
@@ -275,6 +291,9 @@ SELECT
   NULLIF(name, ''),
   lower(coalesce(deletion_mark_text, '')) IN ('true', 'истина', '1', 'yes'),
   coalesce(NULLIF(raw_data_json, '')::jsonb, '{}'::jsonb) || jsonb_build_object(
+    'enterpriseCode', $(sql_literal "${CRM_ENTERPRISE_CODE}"),
+    'enterpriseName', $(sql_literal "${CRM_ENTERPRISE_NAME}"),
+    'enterpriseRef', $(sql_literal "${CRM_ENTERPRISE_REF}"),
     'rowNo', row_no,
     'ref', external_ref,
     'code', code,
@@ -313,8 +332,12 @@ SQL
 done
 
 run_psql -c "
-  SELECT object_type, count(*)::int AS rows
+  SELECT
+    enterprise_code,
+    enterprise_name,
+    object_type,
+    count(*)::int AS rows
   FROM one_c_mirror.latest_rows
-  GROUP BY object_type
-  ORDER BY object_type;
+  GROUP BY enterprise_code, enterprise_name, object_type
+  ORDER BY enterprise_code, object_type;
 "
