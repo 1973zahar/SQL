@@ -21429,3 +21429,30 @@ scripts/windows/run-1c-export-now.ps1
 Note:
 This log entry itself was appended after staging, so docs/crm-sql-work-log-2026-06-01.md must be staged again before commit.
 ```
+
+### Action: commit staged CRM SQL changes
+
+Window: `Вікно 3 - локальний`
+
+Command:
+
+```powershell
+git add docs/crm-sql-work-log-2026-06-01.md
+git commit -m "Add multi-company 1C mirror support"
+```
+
+Result:
+
+```text
+Commit succeeded.
+Commit:
+fa15f1d Add multi-company 1C mirror support
+
+Output:
+[main fa15f1d] Add multi-company 1C mirror support
+ 17 files changed, 14782 insertions(+), 3220 deletions(-)
+ create mode 100644 docs/crm-sql-new-chat-handoff-2026-06-04.md
+
+Next step:
+Commit this new work-log entry, then push to origin/main.
+```
