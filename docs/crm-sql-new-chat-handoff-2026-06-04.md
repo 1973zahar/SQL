@@ -405,3 +405,52 @@ Migration file added for these views:
 ```text
 db/migrations/004_one_c_serial_stock_views.sql
 ```
+
+## 2026-06-06 Folder Path To Product Attributes
+
+Product folder paths should be transformed into derived product attributes in SQL, without editing raw imported product rows.
+
+Source view:
+
+```text
+one_c_mirror.crm_products
+```
+
+Use these fields:
+
+```text
+product_group_path  -- folder path without the product name
+product_full_path   -- folder path plus product name, for display/audit
+```
+
+Do not use `product_group_full_path` against `crm_products`; that field belongs to `one_c_mirror.crm_product_folders`.
+
+Migration file:
+
+```text
+db/migrations/005_one_c_product_folder_attributes.sql
+```
+
+It adds:
+
+```text
+one_c_mirror.crm_product_folder_attribute_rules
+one_c_mirror.crm_product_folder_path_parts
+one_c_mirror.crm_product_folder_attribute_matches
+one_c_mirror.crm_product_folder_attributes
+one_c_mirror.crm_products_enriched
+```
+
+Initial rule examples:
+
+```text
+ПНЕВМАТИКА        -> category_primary = Пневматика
+ОПТИКА            -> category_primary = Оптика
+АКСЕСУАРИ         -> category_primary = Аксесуари та інше
+ЗАПЧАСТИНИ        -> category_secondary = Запчастини
+ЗАПЧАСТИНИ        -> is_spare_part = true
+НАШ ІМПОРТ        -> supply_channel = Наш імпорт
+ФОП СЗМ           -> importer = ФОП СЗМ
+```
+
+For app code, prefer `one_c_mirror.crm_products_enriched` when product cards or filters need folder-derived attributes such as `category_primary`, `category_secondary`, `supply_channel`, `importer`, `is_spare_part_from_folder`, and `folder_attributes`.
