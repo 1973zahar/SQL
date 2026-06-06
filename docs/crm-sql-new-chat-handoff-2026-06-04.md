@@ -319,3 +319,89 @@ Check:
 ## Chat memory note
 
 Exact chat memory percentage is not exposed to the assistant. Context compaction already happened once, so this handoff file and the main work log are the authoritative continuation source.
+
+## 2026-06-06 Serial Stock Source For CRM Builders
+
+Use this for weapon/product serial numbers loaded from 1C.
+
+Authoritative 1C source found during probing:
+
+```text
+РегистрНакопления.ТоварыСерийныеНомераОстатки.Остатки(&EndAt, )
+```
+
+Confirmed 1C fields:
+
+- product: `Номенклатура`
+- warehouse: `Склад`
+- serial number: `СерийныйНомер`
+- organization: `Организация`
+- quantity: `Количество`
+
+Current imported PostgreSQL dataset:
+
+```text
+one_c_mirror.operational_batches.dataset_name = 'serial_stock_current'
+one_c_mirror.operational_rows.dataset_name = 'serial_stock_current'
+```
+
+Imported batch:
+
+```text
+id: 222aa6f8-2760-409a-9ebc-3e746c9c128b
+enterprise_code: elista
+object_type: serial_stock_balance
+row_count: 7188
+status: processed
+source_file: export_1c_serial_stock_current_20260605_155147_clean_utf8.csv
+```
+
+Verified counts after import:
+
+```text
+rows: 7188
+products: 443
+warehouses: 6
+serials: 6557
+quantity_sum: 3214.000
+negative_qty rows: 1977
+positive_qty rows: 5211
+blank_product: 0
+blank_warehouse: 0
+blank_serial: 0
+```
+
+Stable SQL views for other chats and CRM code:
+
+```text
+one_c_mirror.crm_serial_stock_current
+one_c_mirror.crm_serial_stock_by_serial
+one_c_mirror.crm_serial_stock_summary
+```
+
+Use `one_c_mirror.crm_serial_stock_current` when the app needs the detailed row-level serial balance:
+
+```sql
+SELECT
+  enterprise_code,
+  product_code,
+  product_name,
+  warehouse_code,
+  warehouse_name,
+  serial_name,
+  quantity,
+  balance_sign,
+  snapshot_at
+FROM one_c_mirror.crm_serial_stock_current
+WHERE enterprise_code = 'elista';
+```
+
+Use `one_c_mirror.crm_serial_stock_by_serial` when the app needs one row per product + warehouse + serial number with aggregated `serial_quantity`.
+
+Use `one_c_mirror.crm_serial_stock_summary` when the app needs one row per product + warehouse with counts of positive/negative serials and total serial quantity.
+
+Migration file added for these views:
+
+```text
+db/migrations/004_one_c_serial_stock_views.sql
+```
